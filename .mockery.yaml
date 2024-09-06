@@ -1,0 +1,11 @@
+#file: noinspection SpellCheckingInspection
+with-expecter: true
+dir: "{{.InterfaceDir}}"
+inpackage: true
+packages:
+  github.com/metamogul/timestone:
+    interfaces:
+      Action:
+  github.com/metamogul/timestone/simulation:
+    interfaces:
+      EventGenerator:
