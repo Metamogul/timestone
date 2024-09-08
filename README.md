@@ -47,7 +47,7 @@ To provide this level of control, the `simulation.Scheduler` uses a run loop tha
 
 ### Action
 
-An `Action` provides an interface a function to be called along with a name used to link it to a configuration. 
+An `Action` defines an interface for a function to be executed, along with a name used to associate it with a configuration.
 
 ```golang
 type Action interface {
@@ -56,26 +56,25 @@ type Action interface {
 }
 ```
 
-The ActionContext passed to it provides contextual information such as a clock, as well as a control mechanism that facilitates the recursive scheduling of more actions inside an action when using the `simulation.Scheduler`. You can either use the included `SimpleAction` to wrap your code or implement your own.
+The `ActionContext` provided to the `Perform` method offers contextual information such as a clock and a control mechanism that supports the recursive scheduling of additional actions when using the `simulation.Scheduler`. You can either use the included `SimpleAction` to wrap your code or create your own implementation.
 
 ### Event
 
-An `Event` is a concept internal to the `simulation.Scheduler` and basically fuses an `Action` with a `time.Time` when it's due for execution. When e.g. calling `simulation.Scheduler.PerformRepeatedly`, a matching event generator will be registered, dropping events into the event loop.
+An `Event` is an internal concept of the `simulation.Scheduler` that combines an `Action` with a `time.Time` to determine when it should be executed. For example, when calling `simulation.Scheduler.PerformRepeatedly`, a corresponding event generator is registered, which places events into the event loop.
 
-When using the `simulation.Scheduler` to build deterministic unit tests, you will configure events by providing `EventConfiguration`s for them, either targetting events only by the name of their embedded action, or also by their execution time.
+When using the `simulation.Scheduler` for deterministic unit tests, you configure events by providing `EventConfiguration`s. These configurations can target events by the name of their embedded action, or individually by their name and execution time.
 
 ## Contributing
 
-This project is still in an early stage and contributions are welcome. Feel free to contribute create a fork and issue a PR. When issuing a PR, it would be nice if you could relate it to an open ticket so there's documentation later on.
+This project is in its early stages, and contributions are welcome. Feel free to fork the repository and submit a pull request (PR). When submitting a PR, it would be helpful to reference an open issue so that there is documentation for future reference.
 
-If you want to contribute, these are the most important features on the current agenda for this project:
+Currently, the most important features on the agenda for this project are:
 - Pipeline for linting and automatic unit tests before merging
-- Support for cancelled contexts
+- Support for canceled contexts
 
-## Reporting a bug
+## Reporting a Bug
 
-To report a bug, please create an issue ticket for it. In the ticket please provide sufficient code samples along with contextual information that makes the bug reproducable. If you can provide a fix, that certainly is welcome.
-
+To report a bug, please create an issue ticket. Include sufficient code samples and contextual information to reproduce the bug. If you can provide a fix, it will be greatly appreciated.
 
 
 
