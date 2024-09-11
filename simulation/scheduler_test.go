@@ -440,7 +440,7 @@ func TestScheduler_Forward_Recursive(t *testing.T) {
 	}
 }
 
-func TestScheduler_scheduleNextEvent(t *testing.T) {
+func TestScheduler_execNextEvent(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -502,7 +502,7 @@ func TestScheduler_scheduleNextEvent(t *testing.T) {
 			s.SetDefaultMode(ExecModeAsync)
 			s.finishedEventsWaitGroups.new("test")
 
-			if gotShouldContinue := s.scheduleNextEvent(targetTime); gotShouldContinue != tt.wantShouldContinue {
+			if gotShouldContinue := s.execeNextEvent(targetTime); gotShouldContinue != tt.wantShouldContinue {
 				t.Errorf("performNextEvent() = %v, want %v", gotShouldContinue, tt.wantShouldContinue)
 			}
 			s.finishedEventsWaitGroups.wait()
@@ -516,7 +516,7 @@ func TestScheduler_scheduleNextEvent(t *testing.T) {
 	}
 }
 
-func TestScheduler_scheduleEvent(t *testing.T) {
+func TestScheduler_execEvent(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -552,7 +552,7 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 		s.eventConfigs.set("test", nil, eventConfig)
 		s.finishedEventsWaitGroups.new("test")
 
-		s.scheduleEvent(event)
+		s.execEvent(event)
 		s.Wait()
 
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
@@ -579,7 +579,7 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 		s.eventConfigs.set("test", nil, eventConfig)
 		s.finishedEventsWaitGroups.new("test")
 
-		s.scheduleEvent(event)
+		s.execEvent(event)
 		s.Wait()
 
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
@@ -616,7 +616,7 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 		s.eventConfigs.set("test", nil, eventConfig)
 		s.finishedEventsWaitGroups.new("test")
 
-		s.scheduleEvent(event)
+		s.execEvent(event)
 		s.Wait()
 
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
@@ -643,7 +643,7 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 		s.eventConfigs.set("test", nil, eventConfig)
 		s.finishedEventsWaitGroups.new("test")
 
-		s.scheduleEvent(event)
+		s.execEvent(event)
 		s.Wait()
 
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())

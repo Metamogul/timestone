@@ -66,7 +66,7 @@ func (s *Scheduler) ForwardOne() {
 	nextEvent := s.eventQueue.Pop()
 	s.eventGeneratorsMu.RUnlock()
 
-	s.scheduleEvent(nextEvent)
+	s.execEvent(nextEvent)
 }
 
 // WaitFor is to be used after ForwardOne and blocks until all scheduled
@@ -103,13 +103,13 @@ func (s *Scheduler) Wait() {
 func (s *Scheduler) Forward(interval time.Duration) {
 	targetTime := s.clock.Now().Add(interval)
 
-	for s.scheduleNextEvent(targetTime) {
+	for s.execeNextEvent(targetTime) {
 	}
 
 	s.finishedEventsWaitGroups.wait()
 }
 
-func (s *Scheduler) scheduleNextEvent(targetTime time.Time) (shouldContinue bool) {
+func (s *Scheduler) execeNextEvent(targetTime time.Time) (shouldContinue bool) {
 	s.eventGeneratorsMu.RLock()
 
 	if s.eventQueue.Finished() {
@@ -127,12 +127,12 @@ func (s *Scheduler) scheduleNextEvent(targetTime time.Time) (shouldContinue bool
 	nextEvent := s.eventQueue.Pop()
 	s.eventGeneratorsMu.RUnlock()
 
-	s.scheduleEvent(nextEvent)
+	s.execEvent(nextEvent)
 
 	return true
 }
 
-func (s *Scheduler) scheduleEvent(event *Event) {
+func (s *Scheduler) execEvent(event *Event) {
 	s.clock.set(event.Time)
 
 	actionName := event.Name()
