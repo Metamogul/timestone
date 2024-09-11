@@ -46,7 +46,7 @@ func (s *Scheduler) SetDefaultMode(mode ExecMode) {
 }
 
 // ConfigureEvent provides an EventConfiguration for either a single event,
-// identified by the name of its embedded action and the time of its occurence,
+// identified by the name of its embedded action and the time of its occurrence,
 // or for every event matching the actionName if no time is provided.
 func (s *Scheduler) ConfigureEvent(actionName string, time *time.Time, config EventConfiguration) {
 	s.eventConfigs.set(actionName, time, config)
