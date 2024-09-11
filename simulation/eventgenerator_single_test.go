@@ -43,7 +43,7 @@ func Test_newSingleEventGenerator(t *testing.T) {
 				ctx:        ctx,
 			},
 			want: &singleEventGenerator{
-				Event: &Event{
+				event: &Event{
 					Action:  timestone.NewMockAction(t),
 					Time:    time.Time{},
 					Context: ctx,
@@ -69,7 +69,7 @@ func Test_newSingleEventGenerator(t *testing.T) {
 	}
 }
 
-func Test_singleEventStream_pop(t *testing.T) {
+func Test_singleEventGenerator_Pop(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -108,7 +108,7 @@ func Test_singleEventStream_pop(t *testing.T) {
 			t.Parallel()
 
 			s := &singleEventGenerator{
-				Event: tt.fields.event,
+				event: tt.fields.event,
 				ctx:   tt.fields.ctx,
 			}
 
@@ -130,7 +130,7 @@ func Test_singleEventStream_pop(t *testing.T) {
 	}
 }
 
-func Test_singleEventStream_peek(t *testing.T) {
+func Test_singleEventGenerator_Peek(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -169,7 +169,7 @@ func Test_singleEventStream_peek(t *testing.T) {
 			t.Parallel()
 
 			s := &singleEventGenerator{
-				Event: tt.fields.event,
+				event: tt.fields.event,
 				ctx:   tt.fields.ctx,
 			}
 
@@ -186,7 +186,7 @@ func Test_singleEventStream_peek(t *testing.T) {
 	}
 }
 
-func Test_singleEventStream_finished(t *testing.T) {
+func Test_singleEventGenerator_Finished(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -233,7 +233,7 @@ func Test_singleEventStream_finished(t *testing.T) {
 			t.Parallel()
 
 			s := &singleEventGenerator{
-				Event: tt.fields.event,
+				event: tt.fields.event,
 				ctx:   tt.fields.ctx,
 			}
 

@@ -3,6 +3,8 @@ package simulation
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -12,27 +14,27 @@ import (
 type Scheduler struct {
 	*clock
 
-	eventGenerators   *eventCombinator
+	eventQueue        *eventQueue
 	eventGeneratorsMu sync.RWMutex
 
 	eventConfigs *eventConfigurations
 
-	actionWaitGroups *waitGroups
+	finishedEventsWaitGroups *waitGroups
 }
 
 func NewScheduler(now time.Time) *Scheduler {
 	eventConfigs := newEventConfigurations()
 
 	return &Scheduler{
-		clock:            newClock(now),
-		eventGenerators:  newEventCombinator(eventConfigs),
-		eventConfigs:     eventConfigs,
-		actionWaitGroups: newWaitGroups(),
+		clock:                    newClock(now),
+		eventQueue:               newEventQueue(eventConfigs),
+		eventConfigs:             eventConfigs,
+		finishedEventsWaitGroups: newWaitGroups(),
 	}
 }
 
-func (s *Scheduler) SetDefaultMode(mode ScheduleMode) {
-	s.eventConfigs.defaultScheduleMode = mode
+func (s *Scheduler) SetDefaultMode(mode ExecMode) {
+	s.eventConfigs.defaultExecMode = mode
 }
 
 func (s *Scheduler) ConfigureEvent(actionName string, time *time.Time, config EventConfiguration) {
@@ -42,23 +44,23 @@ func (s *Scheduler) ConfigureEvent(actionName string, time *time.Time, config Ev
 func (s *Scheduler) ForwardOne() {
 	s.eventGeneratorsMu.RLock()
 
-	if s.eventGenerators.Finished() {
+	if s.eventQueue.Finished() {
 		s.eventGeneratorsMu.RUnlock()
 		return
 	}
 
-	nextEvent := s.eventGenerators.Pop()
+	nextEvent := s.eventQueue.Pop()
 	s.eventGeneratorsMu.RUnlock()
 
 	s.scheduleEvent(nextEvent)
 }
 
 func (s *Scheduler) WaitFor(actionNames ...string) {
-	s.actionWaitGroups.waitFor(actionNames...)
+	s.finishedEventsWaitGroups.waitFor(actionNames...)
 }
 
 func (s *Scheduler) Wait() {
-	s.actionWaitGroups.wait()
+	s.finishedEventsWaitGroups.wait()
 }
 
 func (s *Scheduler) Forward(interval time.Duration) {
@@ -67,25 +69,25 @@ func (s *Scheduler) Forward(interval time.Duration) {
 	for s.scheduleNextEvent(targetTime) {
 	}
 
-	s.actionWaitGroups.wait()
+	s.finishedEventsWaitGroups.wait()
 }
 
 func (s *Scheduler) scheduleNextEvent(targetTime time.Time) (shouldContinue bool) {
 	s.eventGeneratorsMu.RLock()
 
-	if s.eventGenerators.Finished() {
+	if s.eventQueue.Finished() {
 		s.clock.set(targetTime)
 		s.eventGeneratorsMu.RUnlock()
 		return false
 	}
 
-	if s.eventGenerators.Peek().After(targetTime) {
+	if s.eventQueue.Peek().After(targetTime) {
 		s.clock.set(targetTime)
 		s.eventGeneratorsMu.RUnlock()
 		return false
 	}
 
-	nextEvent := s.eventGenerators.Pop()
+	nextEvent := s.eventQueue.Pop()
 	s.eventGeneratorsMu.RUnlock()
 
 	s.scheduleEvent(nextEvent)
@@ -97,42 +99,35 @@ func (s *Scheduler) scheduleEvent(event *Event) {
 	s.clock.set(event.Time)
 
 	actionName := event.Name()
-	recursiveMode := s.eventConfigs.getRecursiveMode(event)
-	scheduleMode := s.eventConfigs.getScheduleMode(event)
+	execMode := s.eventConfigs.getExecMode(event)
 	blockingActions := s.eventConfigs.getBlockingActions(event)
+	wantedNewGenerators := s.eventConfigs.getWantedNewGenerators(event)
 
-	if scheduleMode == ScheduleModeAsync && recursiveMode == RecursiveModeWaitForActions {
-		recursiveSchedulingBlocker := new(sync.WaitGroup)
-		recursiveSchedulingBlocker.Add(1)
+	for wantedActionName, wantedEventCount := range wantedNewGenerators {
+		s.eventQueue.newGeneratorsWaitGroups.new(wantedActionName)
+		s.eventQueue.newGeneratorsWaitGroups.add(wantedActionName, wantedEventCount)
+	}
 
-		s.actionWaitGroups.add(actionName, 1)
+	switch execMode {
+
+	case ExecModeAsync:
+		s.finishedEventsWaitGroups.add(actionName, 1)
 		go func() {
-			defer s.actionWaitGroups.done(actionName)
-			s.actionWaitGroups.waitFor(blockingActions...)
-			event.Perform(newActionContext(event.Context, newClock(event.Time), recursiveSchedulingBlocker))
+			s.finishedEventsWaitGroups.waitFor(blockingActions...)
+			event.Perform(context.WithValue(event.Context, timestone.ActionContextClockKey, newClock(event.Time)))
+			s.finishedEventsWaitGroups.done(actionName)
 		}()
 
-		recursiveSchedulingBlocker.Wait()
-		return
+	case ExecModeSequential:
+		s.finishedEventsWaitGroups.wait()
+		event.Perform(context.WithValue(event.Context, timestone.ActionContextClockKey, newClock(event.Time)))
+
+	default:
+		panic(fmt.Sprintf("No schedule mode defined for action %s", event.Action.Name()))
 	}
 
-	if scheduleMode == ScheduleModeAsync {
-		s.actionWaitGroups.add(actionName, 1)
-		go func() {
-			defer s.actionWaitGroups.done(actionName)
-			s.actionWaitGroups.waitFor(blockingActions...)
-			event.Perform(newActionContext(event.Context, newClock(event.Time), nil))
-		}()
-		return
-	}
-
-	if scheduleMode == ScheduleModeSequential {
-		s.actionWaitGroups.wait()
-		event.Perform(newActionContext(event.Context, newClock(event.Time), nil))
-		return
-	}
-
-	panic(fmt.Sprintf("No schedule mode defined for action %s", event.Action.Name()))
+	wantedActionNames := slices.Collect(maps.Keys(wantedNewGenerators))
+	s.eventQueue.newGeneratorsWaitGroups.waitFor(wantedActionNames...)
 }
 
 func (s *Scheduler) PerformNow(ctx context.Context, action timestone.Action) {
@@ -152,10 +147,11 @@ func (s *Scheduler) AddEventGenerators(generators ...EventGenerator) {
 	defer s.eventGeneratorsMu.Unlock()
 
 	for _, generator := range generators {
-		if !generator.Finished() {
-			s.actionWaitGroups.new(generator.Peek().Name())
+		if generator.Finished() {
+			continue
 		}
 
-		s.eventGenerators.add(generator)
+		s.finishedEventsWaitGroups.new(generator.Peek().Name())
+		s.eventQueue.add(generator)
 	}
 }

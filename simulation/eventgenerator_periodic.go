@@ -13,7 +13,7 @@ type periodicEventGenerator struct {
 	to       *time.Time
 	interval time.Duration
 
-	currentEvent *Event
+	nextEvent *Event
 
 	ctx context.Context
 }
@@ -49,7 +49,7 @@ func newPeriodicEventGenerator(
 		to:       to,
 		interval: interval,
 
-		currentEvent: firstEvent,
+		nextEvent: firstEvent,
 
 		ctx: ctx,
 	}
@@ -60,9 +60,9 @@ func (p *periodicEventGenerator) Pop() *Event {
 		panic(ErrEventGeneratorFinished)
 	}
 
-	defer func() { p.currentEvent = NewEvent(p.ctx, p.action, p.currentEvent.Time.Add(p.interval)) }()
+	defer func() { p.nextEvent = NewEvent(p.ctx, p.action, p.nextEvent.Time.Add(p.interval)) }()
 
-	return p.currentEvent
+	return p.nextEvent
 }
 
 func (p *periodicEventGenerator) Peek() Event {
@@ -70,7 +70,7 @@ func (p *periodicEventGenerator) Peek() Event {
 		panic(ErrEventGeneratorFinished)
 	}
 
-	return *p.currentEvent
+	return *p.nextEvent
 }
 
 func (p *periodicEventGenerator) Finished() bool {
@@ -82,5 +82,5 @@ func (p *periodicEventGenerator) Finished() bool {
 		return false
 	}
 
-	return p.currentEvent.Add(p.interval).After(*p.to)
+	return p.nextEvent.Add(p.interval).After(*p.to)
 }

@@ -26,9 +26,9 @@ func TestNewScheduler(t *testing.T) {
 	require.NotNil(t, newEventScheduler.clock)
 	require.Equal(t, now, newEventScheduler.Now())
 
-	require.NotNil(t, newEventScheduler.eventGenerators)
+	require.NotNil(t, newEventScheduler.eventQueue)
 	require.NotNil(t, newEventScheduler.eventConfigs)
-	require.NotNil(t, newEventScheduler.actionWaitGroups)
+	require.NotNil(t, newEventScheduler.finishedEventsWaitGroups)
 }
 
 func TestScheduler_SetDefaultMode(t *testing.T) {
@@ -36,7 +36,7 @@ func TestScheduler_SetDefaultMode(t *testing.T) {
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	NewScheduler(now).SetDefaultMode(ScheduleModeAsync)
+	NewScheduler(now).SetDefaultMode(ExecModeAsync)
 }
 
 func TestScheduler_ConfigureEvent(t *testing.T) {
@@ -58,11 +58,11 @@ func TestScheduler_ForwardOne(t *testing.T) {
 	longRunningAction1 := timestone.NewMockAction(t)
 	longRunningAction1.EXPECT().
 		Perform(mock.Anything).
-		Run(func(ctx timestone.ActionContext) {
+		Run(func(ctx context.Context) {
 			time.Sleep(100 * time.Millisecond)
 
 			mu.Lock()
-			eventTimes = append(eventTimes, ctx.Clock().Now())
+			eventTimes = append(eventTimes, ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now())
 			mu.Unlock()
 		}).
 		Once()
@@ -74,11 +74,11 @@ func TestScheduler_ForwardOne(t *testing.T) {
 	longRunningAction2 := timestone.NewMockAction(t)
 	longRunningAction2.EXPECT().
 		Perform(mock.Anything).
-		Run(func(ctx timestone.ActionContext) {
+		Run(func(ctx context.Context) {
 			time.Sleep(50 * time.Millisecond)
 
 			mu.Lock()
-			eventTimes = append(eventTimes, ctx.Clock().Now())
+			eventTimes = append(eventTimes, ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now())
 			mu.Unlock()
 		}).
 		Once()
@@ -88,7 +88,7 @@ func TestScheduler_ForwardOne(t *testing.T) {
 		Maybe()
 
 	s := NewScheduler(now)
-	s.SetDefaultMode(ScheduleModeAsync)
+	s.SetDefaultMode(ExecModeAsync)
 	s.PerformAfter(context.Background(), longRunningAction1, 1*time.Second)
 	s.PerformAfter(context.Background(), longRunningAction2, 2*time.Second)
 
@@ -111,16 +111,16 @@ func TestScheduler_ForwardOne_Recursive(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	testcases := []struct {
-		name         string
-		scheduleMode ScheduleMode
+		name     string
+		execMode ExecMode
 	}{
 		{
-			name:         "sequential",
-			scheduleMode: ScheduleModeSequential,
+			name:     "sequential",
+			execMode: ExecModeSequential,
 		},
 		{
-			name:         "async",
-			scheduleMode: ScheduleModeAsync,
+			name:     "async",
+			execMode: ExecModeAsync,
 		},
 	}
 
@@ -136,9 +136,12 @@ func TestScheduler_ForwardOne_Recursive(t *testing.T) {
 			innerAction := timestone.NewMockAction(t)
 			innerAction.EXPECT().
 				Perform(mock.Anything).
-				Run(func(ctx timestone.ActionContext) {
+				Run(func(ctx context.Context) {
 					mu.Lock()
-					eventTimes = append(eventTimes, ctx.Clock().Now())
+					eventTimes = append(
+						eventTimes,
+						ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now(),
+					)
 					mu.Unlock()
 				}).
 				Once()
@@ -150,12 +153,14 @@ func TestScheduler_ForwardOne_Recursive(t *testing.T) {
 			outerAction := timestone.NewMockAction(t)
 			outerAction.EXPECT().
 				Perform(mock.Anything).
-				Run(func(ctx timestone.ActionContext) {
+				Run(func(ctx context.Context) {
 					s.PerformAfter(ctx, innerAction, time.Second)
-					ctx.DoneSchedulingNewActions()
 
 					mu.Lock()
-					eventTimes = append(eventTimes, ctx.Clock().Now())
+					eventTimes = append(
+						eventTimes,
+						ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now(),
+					)
 					mu.Unlock()
 				}).
 				Once()
@@ -164,9 +169,11 @@ func TestScheduler_ForwardOne_Recursive(t *testing.T) {
 				Return("outerAction").
 				Maybe()
 
-			s.SetDefaultMode(tt.scheduleMode)
+			s.SetDefaultMode(tt.execMode)
 			s.PerformAfter(context.Background(), outerAction, 1*time.Second)
-			s.ConfigureEvent("outerAction", nil, EventConfiguration{RecursiveMode: RecursiveModeWaitForActions})
+			s.ConfigureEvent("outerAction", nil, EventConfiguration{
+				WantsNewGenerators: map[string]int{"innerAction": 1},
+			})
 
 			s.ForwardOne()
 			s.WaitFor("outerAction")
@@ -189,16 +196,16 @@ func TestScheduler_WaitFor(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	s := NewScheduler(now)
-	s.actionWaitGroups.new("test1")
-	s.actionWaitGroups.new("test2")
-	s.actionWaitGroups.add("test1", 1)
-	s.actionWaitGroups.add("test2", 1)
+	s.finishedEventsWaitGroups.new("test1")
+	s.finishedEventsWaitGroups.new("test2")
+	s.finishedEventsWaitGroups.add("test1", 1)
+	s.finishedEventsWaitGroups.add("test2", 1)
 	go func() {
-		s.actionWaitGroups.done("test1")
-		s.actionWaitGroups.done("test2")
+		s.finishedEventsWaitGroups.done("test1")
+		s.finishedEventsWaitGroups.done("test2")
 	}()
 
-	s.actionWaitGroups.waitFor("test1", "test2")
+	s.finishedEventsWaitGroups.waitFor("test1", "test2")
 }
 
 func TestScheduler_Wait(t *testing.T) {
@@ -210,12 +217,12 @@ func TestScheduler_Wait(t *testing.T) {
 
 	for i := range 5 {
 		testName := fmt.Sprintf("test%d", i)
-		s.actionWaitGroups.new(testName)
-		s.actionWaitGroups.add(testName, 1)
-		go func() { s.actionWaitGroups.done(testName) }()
+		s.finishedEventsWaitGroups.new(testName)
+		s.finishedEventsWaitGroups.add(testName, 1)
+		go func() { s.finishedEventsWaitGroups.done(testName) }()
 	}
 
-	s.actionWaitGroups.wait()
+	s.finishedEventsWaitGroups.wait()
 }
 
 func TestScheduler_Forward(t *testing.T) {
@@ -239,7 +246,7 @@ func TestScheduler_Forward(t *testing.T) {
 			fooActionScheduleAfter: 1 * time.Millisecond,
 			barActionScheduleAfter: 2 * time.Millisecond,
 			configureScheduler: func(s *Scheduler) {
-				s.SetDefaultMode(ScheduleModeAsync)
+				s.SetDefaultMode(ExecModeAsync)
 			},
 			wantResult: "barfoo",
 			wantTimes: []time.Time{
@@ -252,7 +259,7 @@ func TestScheduler_Forward(t *testing.T) {
 			fooActionScheduleAfter: 1 * time.Millisecond,
 			barActionScheduleAfter: 2 * time.Millisecond,
 			configureScheduler: func(s *Scheduler) {
-				s.SetDefaultMode(ScheduleModeAsync)
+				s.SetDefaultMode(ExecModeAsync)
 				s.ConfigureEvent("barAction", nil, EventConfiguration{WaitForActions: []string{"fooAction"}})
 			},
 			wantResult: "foobar",
@@ -266,8 +273,8 @@ func TestScheduler_Forward(t *testing.T) {
 			fooActionScheduleAfter: 1 * time.Millisecond,
 			barActionScheduleAfter: 2 * time.Millisecond,
 			configureScheduler: func(s *Scheduler) {
-				s.SetDefaultMode(ScheduleModeAsync)
-				s.ConfigureEvent("barAction", nil, EventConfiguration{ScheduleMode: ScheduleModeSequential})
+				s.SetDefaultMode(ExecModeAsync)
+				s.ConfigureEvent("barAction", nil, EventConfiguration{ExecMode: ExecModeSequential})
 			},
 			wantResult: "foobar",
 			wantTimes: []time.Time{
@@ -280,7 +287,7 @@ func TestScheduler_Forward(t *testing.T) {
 			fooActionScheduleAfter: 1 * time.Millisecond,
 			barActionScheduleAfter: 2 * time.Millisecond,
 			configureScheduler: func(s *Scheduler) {
-				s.SetDefaultMode(ScheduleModeSequential)
+				s.SetDefaultMode(ExecModeSequential)
 			},
 			wantResult: "foobar",
 			wantTimes: []time.Time{
@@ -293,7 +300,7 @@ func TestScheduler_Forward(t *testing.T) {
 			fooActionScheduleAfter: 1 * time.Millisecond,
 			barActionScheduleAfter: 1 * time.Millisecond,
 			configureScheduler: func(s *Scheduler) {
-				s.SetDefaultMode(ScheduleModeSequential)
+				s.SetDefaultMode(ExecModeSequential)
 				s.ConfigureEvent("fooAction", nil, EventConfiguration{Priority: 2})
 				s.ConfigureEvent("barAction", nil, EventConfiguration{Priority: 1})
 			},
@@ -315,10 +322,12 @@ func TestScheduler_Forward(t *testing.T) {
 			fooAction := timestone.NewMockAction(t)
 			fooAction.EXPECT().
 				Perform(mock.Anything).
-				Run(func(ctx timestone.ActionContext) {
+				Run(func(ctx context.Context) {
 					time.Sleep(fooActionSimulateLoad)
 					result += "foo"
-					executionTimes = append(executionTimes, ctx.Clock().Now())
+					executionTimes = append(
+						executionTimes, ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now(),
+					)
 				}).
 				Once()
 			fooAction.EXPECT().
@@ -329,10 +338,12 @@ func TestScheduler_Forward(t *testing.T) {
 			barAction := timestone.NewMockAction(t)
 			barAction.EXPECT().
 				Perform(mock.Anything).
-				Run(func(ctx timestone.ActionContext) {
+				Run(func(ctx context.Context) {
 					time.Sleep(barActionSimulateLoad)
 					result += "bar"
-					executionTimes = append(executionTimes, ctx.Clock().Now())
+					executionTimes = append(
+						executionTimes, ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now(),
+					)
 				}).
 				Once()
 			barAction.EXPECT().
@@ -360,16 +371,16 @@ func TestScheduler_Forward_Recursive(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	testcases := []struct {
-		name         string
-		scheduleMode ScheduleMode
+		name     string
+		execMode ExecMode
 	}{
 		{
-			name:         "sequential",
-			scheduleMode: ScheduleModeSequential,
+			name:     "sequential",
+			execMode: ExecModeSequential,
 		},
 		{
-			name:         "async",
-			scheduleMode: ScheduleModeAsync,
+			name:     "async",
+			execMode: ExecModeAsync,
 		},
 	}
 
@@ -384,8 +395,11 @@ func TestScheduler_Forward_Recursive(t *testing.T) {
 			innerAction := timestone.NewMockAction(t)
 			innerAction.EXPECT().
 				Perform(mock.Anything).
-				Run(func(ctx timestone.ActionContext) {
-					executionTimes = append(executionTimes, ctx.Clock().Now())
+				Run(func(ctx context.Context) {
+					executionTimes = append(
+						executionTimes,
+						ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now(),
+					)
 				}).
 				Once()
 			innerAction.EXPECT().
@@ -396,10 +410,12 @@ func TestScheduler_Forward_Recursive(t *testing.T) {
 			outerAction := timestone.NewMockAction(t)
 			outerAction.EXPECT().
 				Perform(mock.Anything).
-				Run(func(ctx timestone.ActionContext) {
+				Run(func(ctx context.Context) {
 					s.PerformAfter(context.Background(), innerAction, time.Second)
-					ctx.DoneSchedulingNewActions()
-					executionTimes = append(executionTimes, ctx.Clock().Now())
+					executionTimes = append(
+						executionTimes,
+						ctx.Value(timestone.ActionContextClockKey).(timestone.Clock).Now(),
+					)
 				}).
 				Once()
 			outerAction.EXPECT().
@@ -407,8 +423,10 @@ func TestScheduler_Forward_Recursive(t *testing.T) {
 				Return("outerAction").
 				Maybe()
 
-			s.SetDefaultMode(tt.scheduleMode)
-			s.ConfigureEvent("outerAction", nil, EventConfiguration{RecursiveMode: RecursiveModeWaitForActions})
+			s.SetDefaultMode(tt.execMode)
+			s.ConfigureEvent("outerAction", nil, EventConfiguration{
+				WantsNewGenerators: map[string]int{"innerAction": 1},
+			})
 
 			s.PerformAfter(context.Background(), outerAction, time.Second)
 
@@ -440,7 +458,12 @@ func TestScheduler_scheduleNextEvent(t *testing.T) {
 		{
 			name: "next event after target time",
 			eventGenerators: func() []EventGenerator {
-				return []EventGenerator{newSingleEventGenerator(context.Background(), timestone.NewMockAction(t), now.Add(1*time.Hour))}
+				mockAction := timestone.NewMockAction(t)
+				mockAction.EXPECT().
+					Name().
+					Return("test").
+					Maybe()
+				return []EventGenerator{newSingleEventGenerator(context.Background(), mockAction, now.Add(1*time.Hour))}
 			},
 		},
 		{
@@ -465,19 +488,24 @@ func TestScheduler_scheduleNextEvent(t *testing.T) {
 			t.Parallel()
 
 			eventConfigs := newEventConfigurations()
-			s := &Scheduler{
-				clock:            newClock(now),
-				eventGenerators:  newEventCombinator(eventConfigs, tt.eventGenerators()...),
-				eventConfigs:     eventConfigs,
-				actionWaitGroups: newWaitGroups(),
+			eventQueue := newEventQueue(eventConfigs)
+			for _, generator := range tt.eventGenerators() {
+				eventQueue.add(generator)
 			}
-			s.SetDefaultMode(ScheduleModeAsync)
-			s.actionWaitGroups.new("test")
+
+			s := &Scheduler{
+				clock:                    newClock(now),
+				eventQueue:               eventQueue,
+				eventConfigs:             eventConfigs,
+				finishedEventsWaitGroups: newWaitGroups(),
+			}
+			s.SetDefaultMode(ExecModeAsync)
+			s.finishedEventsWaitGroups.new("test")
 
 			if gotShouldContinue := s.scheduleNextEvent(targetTime); gotShouldContinue != tt.wantShouldContinue {
 				t.Errorf("performNextEvent() = %v, want %v", gotShouldContinue, tt.wantShouldContinue)
 			}
-			s.actionWaitGroups.wait()
+			s.finishedEventsWaitGroups.wait()
 
 			if tt.wantShouldContinue == true {
 				require.Equal(t, now.Add(time.Second), s.Now())
@@ -493,8 +521,10 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	t.Run("async, wait for actions", func(t *testing.T) {
+	t.Run("async, wants new generators", func(t *testing.T) {
 		t.Parallel()
+
+		s := NewScheduler(now)
 
 		mockAction := timestone.NewMockAction(t)
 		mockAction.EXPECT().
@@ -503,20 +533,24 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 			Maybe()
 		mockAction.EXPECT().
 			Perform(mock.Anything).
-			Run(func(ctx timestone.ActionContext) {
-				ctx.DoneSchedulingNewActions()
+			Run(func(context.Context) {
+				mockAction := timestone.NewMockAction(t)
+				mockAction.EXPECT().
+					Name().
+					Return("scheduledByTest").
+					Maybe()
+				s.PerformNow(context.Background(), mockAction)
 			}).
 			Once()
 
 		event := NewEvent(context.Background(), mockAction, now.Add(time.Minute))
 		eventConfig := EventConfiguration{
-			ScheduleMode:  ScheduleModeAsync,
-			RecursiveMode: RecursiveModeWaitForActions,
+			ExecMode:           ExecModeAsync,
+			WantsNewGenerators: map[string]int{"scheduledByTest": 1},
 		}
 
-		s := NewScheduler(now)
 		s.eventConfigs.set("test", nil, eventConfig)
-		s.actionWaitGroups.new("test")
+		s.finishedEventsWaitGroups.new("test")
 
 		s.scheduleEvent(event)
 		s.Wait()
@@ -524,7 +558,7 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
 	})
 
-	t.Run("async, don't wait for actions", func(t *testing.T) {
+	t.Run("async, no new generators", func(t *testing.T) {
 		t.Parallel()
 
 		mockAction := timestone.NewMockAction(t)
@@ -538,12 +572,12 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 
 		event := NewEvent(context.Background(), mockAction, now.Add(time.Minute))
 		eventConfig := EventConfiguration{
-			ScheduleMode: ScheduleModeAsync,
+			ExecMode: ExecModeAsync,
 		}
 
 		s := NewScheduler(now)
 		s.eventConfigs.set("test", nil, eventConfig)
-		s.actionWaitGroups.new("test")
+		s.finishedEventsWaitGroups.new("test")
 
 		s.scheduleEvent(event)
 		s.Wait()
@@ -551,7 +585,44 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
 	})
 
-	t.Run("sequential", func(t *testing.T) {
+	t.Run("sequential, wants new generators", func(t *testing.T) {
+		t.Parallel()
+
+		s := NewScheduler(now)
+
+		mockAction := timestone.NewMockAction(t)
+		mockAction.EXPECT().
+			Name().
+			Return("test").
+			Maybe()
+		mockAction.EXPECT().
+			Perform(mock.Anything).
+			Run(func(context.Context) {
+				mockAction := timestone.NewMockAction(t)
+				mockAction.EXPECT().
+					Name().
+					Return("scheduledByTest").
+					Maybe()
+				s.PerformNow(context.Background(), mockAction)
+			}).
+			Once()
+
+		event := NewEvent(context.Background(), mockAction, now.Add(time.Minute))
+		eventConfig := EventConfiguration{
+			ExecMode:           ExecModeSequential,
+			WantsNewGenerators: map[string]int{"scheduledByTest": 1},
+		}
+
+		s.eventConfigs.set("test", nil, eventConfig)
+		s.finishedEventsWaitGroups.new("test")
+
+		s.scheduleEvent(event)
+		s.Wait()
+
+		require.Equal(t, now.Add(time.Minute), s.clock.Now())
+	})
+
+	t.Run("sequential, no new generators", func(t *testing.T) {
 		t.Parallel()
 
 		mockAction := timestone.NewMockAction(t)
@@ -565,12 +636,12 @@ func TestScheduler_scheduleEvent(t *testing.T) {
 
 		event := NewEvent(context.Background(), mockAction, now.Add(time.Minute))
 		eventConfig := EventConfiguration{
-			ScheduleMode: ScheduleModeSequential,
+			ExecMode: ExecModeSequential,
 		}
 
 		s := NewScheduler(now)
 		s.eventConfigs.set("test", nil, eventConfig)
-		s.actionWaitGroups.new("test")
+		s.finishedEventsWaitGroups.new("test")
 
 		s.scheduleEvent(event)
 		s.Wait()
@@ -590,14 +661,14 @@ func TestScheduler_PerformNow(t *testing.T) {
 	mockAction.EXPECT().
 		Name().
 		Return("mockAction").
-		Once()
+		Maybe()
 
 	s.PerformNow(context.Background(), mockAction)
 
-	require.Len(t, s.actionWaitGroups.waitGroups, 1)
-	require.NotNil(t, s.actionWaitGroups.waitGroups["mockAction"])
-	require.Len(t, s.eventGenerators.activeGenerators, 1)
-	require.IsType(t, &singleEventGenerator{}, s.eventGenerators.activeGenerators[0])
+	require.Len(t, s.finishedEventsWaitGroups.waitGroups, 1)
+	require.NotNil(t, s.finishedEventsWaitGroups.waitGroups["mockAction"])
+	require.Len(t, s.eventQueue.activeGenerators, 1)
+	require.IsType(t, &singleEventGenerator{}, s.eventQueue.activeGenerators[0])
 }
 
 func TestScheduler_PerformAfter(t *testing.T) {
@@ -611,14 +682,14 @@ func TestScheduler_PerformAfter(t *testing.T) {
 	mockAction.EXPECT().
 		Name().
 		Return("mockAction").
-		Once()
+		Maybe()
 
 	s.PerformAfter(context.Background(), mockAction, time.Second)
 
-	require.Len(t, s.actionWaitGroups.waitGroups, 1)
-	require.NotNil(t, s.actionWaitGroups.waitGroups["mockAction"])
-	require.Len(t, s.eventGenerators.activeGenerators, 1)
-	require.IsType(t, &singleEventGenerator{}, s.eventGenerators.activeGenerators[0])
+	require.Len(t, s.finishedEventsWaitGroups.waitGroups, 1)
+	require.NotNil(t, s.finishedEventsWaitGroups.waitGroups["mockAction"])
+	require.Len(t, s.eventQueue.activeGenerators, 1)
+	require.IsType(t, &singleEventGenerator{}, s.eventQueue.activeGenerators[0])
 }
 
 func TestScheduler_PerformRepeatedly(t *testing.T) {
@@ -632,14 +703,14 @@ func TestScheduler_PerformRepeatedly(t *testing.T) {
 	mockAction.EXPECT().
 		Name().
 		Return("mockAction").
-		Once()
+		Maybe()
 
 	s.PerformRepeatedly(context.Background(), mockAction, nil, time.Second)
 
-	require.Len(t, s.actionWaitGroups.waitGroups, 1)
-	require.NotNil(t, s.actionWaitGroups.waitGroups["mockAction"])
-	require.Len(t, s.eventGenerators.activeGenerators, 1)
-	require.IsType(t, &periodicEventGenerator{}, s.eventGenerators.activeGenerators[0])
+	require.Len(t, s.finishedEventsWaitGroups.waitGroups, 1)
+	require.NotNil(t, s.finishedEventsWaitGroups.waitGroups["mockAction"])
+	require.Len(t, s.eventQueue.activeGenerators, 1)
+	require.IsType(t, &periodicEventGenerator{}, s.eventQueue.activeGenerators[0])
 }
 
 func TestScheduler_AddEventGenerators(t *testing.T) {
@@ -679,7 +750,7 @@ func TestScheduler_AddEventGenerators(t *testing.T) {
 
 	s.AddEventGenerators(mockEventGenerator1, mockEventGenerator2)
 
-	require.Len(t, s.actionWaitGroups.waitGroups, 1)
-	require.NotNil(t, s.actionWaitGroups.waitGroups["mockAction"])
-	require.Len(t, s.eventGenerators.activeGenerators, 2)
+	require.Len(t, s.finishedEventsWaitGroups.waitGroups, 1)
+	require.NotNil(t, s.finishedEventsWaitGroups.waitGroups["mockAction"])
+	require.Len(t, s.eventQueue.activeGenerators, 2)
 }

@@ -97,7 +97,7 @@ func Test_newPeriodicEventGenerator(t *testing.T) {
 				from:     time.Time{},
 				to:       ptr(time.Time{}.Add(2 * time.Second)),
 				interval: time.Second,
-				currentEvent: &Event{
+				nextEvent: &Event{
 					Action:  timestone.NewMockAction(t),
 					Time:    time.Time{}.Add(time.Second),
 					Context: ctx,
@@ -123,7 +123,7 @@ func Test_newPeriodicEventGenerator(t *testing.T) {
 	}
 }
 
-func Test_periodicEventGenerator_pop(t *testing.T) {
+func Test_periodicEventGenerator_Pop(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -199,12 +199,12 @@ func Test_periodicEventGenerator_pop(t *testing.T) {
 			t.Parallel()
 
 			p := &periodicEventGenerator{
-				action:       tt.fields.action,
-				from:         tt.fields.from,
-				to:           tt.fields.to,
-				interval:     tt.fields.interval,
-				currentEvent: tt.fields.currentEvent,
-				ctx:          tt.fields.ctx,
+				action:    tt.fields.action,
+				from:      tt.fields.from,
+				to:        tt.fields.to,
+				interval:  tt.fields.interval,
+				nextEvent: tt.fields.currentEvent,
+				ctx:       tt.fields.ctx,
 			}
 
 			if tt.requirePanic {
@@ -225,7 +225,7 @@ func Test_periodicEventGenerator_pop(t *testing.T) {
 	}
 }
 
-func Test_periodicEventGenerator_peek(t *testing.T) {
+func Test_periodicEventGenerator_Peek(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -276,12 +276,12 @@ func Test_periodicEventGenerator_peek(t *testing.T) {
 			t.Parallel()
 
 			p := &periodicEventGenerator{
-				action:       tt.fields.action,
-				from:         tt.fields.from,
-				to:           tt.fields.to,
-				interval:     tt.fields.interval,
-				currentEvent: tt.fields.currentEvent,
-				ctx:          tt.fields.ctx,
+				action:    tt.fields.action,
+				from:      tt.fields.from,
+				to:        tt.fields.to,
+				interval:  tt.fields.interval,
+				nextEvent: tt.fields.currentEvent,
+				ctx:       tt.fields.ctx,
 			}
 
 			if tt.requirePanic {
@@ -298,7 +298,7 @@ func Test_periodicEventGenerator_peek(t *testing.T) {
 	}
 }
 
-func Test_periodicEventGenerator_finished(t *testing.T) {
+func Test_periodicEventGenerator_Finished(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -373,12 +373,12 @@ func Test_periodicEventGenerator_finished(t *testing.T) {
 			t.Parallel()
 
 			p := &periodicEventGenerator{
-				action:       tt.fields.action,
-				from:         tt.fields.from,
-				to:           tt.fields.to,
-				interval:     tt.fields.interval,
-				currentEvent: tt.fields.currentEvent,
-				ctx:          tt.fields.ctx,
+				action:    tt.fields.action,
+				from:      tt.fields.from,
+				to:        tt.fields.to,
+				interval:  tt.fields.interval,
+				nextEvent: tt.fields.currentEvent,
+				ctx:       tt.fields.ctx,
 			}
 
 			require.Equal(t, tt.want, p.Finished())

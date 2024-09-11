@@ -66,7 +66,7 @@ func Test_newEvent(t *testing.T) {
 func Test_event_perform(t *testing.T) {
 	t.Parallel()
 
-	actionContextArg := newActionContext(context.Background(), newClock(time.Now()), nil)
+	actionContextArg := context.WithValue(context.Background(), timestone.ActionContextClockKey, newClock(time.Now()))
 
 	e := &Event{
 		Action: func() timestone.Action {

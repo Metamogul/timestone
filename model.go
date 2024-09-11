@@ -5,43 +5,81 @@ import (
 	"time"
 )
 
+// Clock provides access to the current time and should be used inside
+// actions instead of calling time.Now(). It is available as value in
+// the context.Context inside an action under the key
+// ActionContextClockKey
 type Clock interface {
+	// Now returns the current time.
 	Now() time.Time
 }
 
-const ActionContextClockKey = "actionContextClock"
+// ActionContextClockKey provides access to a Clock as value in the
+// context.Context inside an Action.
+const ActionContextClockKey = "timestone.ActionContextClock"
 
-type ActionContext interface {
-	context.Context
-	Clock() Clock
-	DoneSchedulingNewActions()
-}
-
+// An Action is a function to be scheduled by a Scheduler instance.
+// It is identified by a name, e.g. for other Action s to wait for it.
 type Action interface {
-	Perform(ActionContext)
+	// Perform executed the action. A clock is passed inside ctx at the
+	// ActionContextClockKey.
+	Perform(ctx context.Context)
+	// Name identifies the Action, so the scheduler can apply configurations
+	// to it. Name doesn't need to be unique and should be chosen
+	// according to your configuration needs.
 	Name() string
 }
 
+// SimpleAction provides a reference implementation for Action that
+// covers most use cases.
 type SimpleAction struct {
-	action func(ActionContext)
+	action func(context.Context)
 	name   string
 }
 
-func NewSimpleAction(action func(ActionContext), name string) *SimpleAction {
+// NewSimpleAction creates a new Action that is statically configured to
+// perform action, identifying by name.
+func NewSimpleAction(action func(context.Context), name string) *SimpleAction {
 	return &SimpleAction{action, name}
 }
 
-func (s *SimpleAction) Perform(ctx ActionContext) {
+// Perform implements Action and performs the action that has been
+// passed when calling NewSimpleAction.
+func (s *SimpleAction) Perform(ctx context.Context) {
 	s.action(ctx)
 }
 
+// Name implements Action and statically returns the name that has
+// been passed when calling NewSimpleAction.
 func (s *SimpleAction) Name() string {
 	return s.name
 }
 
+// Scheduler encapsulates the scheduling of Action s and should replace
+// every use of goroutines to enable deterministic unit tests.
+//
+// The system.Scheduler implementation will use goroutines for scheduling
+// using well established concurrency patterns. It is intended to be
+// passed as the actual production dependency to all components that
+// need to perform asynchronous Action s.
+//
+// The simulation.Scheduler implementation uses a configurable run loop
+// instead. It is intended for use in unit tests, where you can use the
+// simulation.Scheduler.ConfigureEvent method to provide various options
+// that help the Scheduler to establish a deterministic and repeatable
+// execution order of actions.
 type Scheduler interface {
+	// Clock embeds a clock that represents the current point in time
+	// as events are being executed.
 	Clock
+	// PerformNow schedules action to be executed immediately, that is
+	// at the current time of the Scheduler's clock.
 	PerformNow(ctx context.Context, action Action)
+	// PerformAfter schedules an action to be run once after a delay
+	// of duration.
 	PerformAfter(ctx context.Context, action Action, duration time.Duration)
+	// PerformRepeatedly schedules an action to be run every interval
+	// after an initial delay of interval. If until is provided, the last
+	// event will be run before or at until.
 	PerformRepeatedly(ctx context.Context, action Action, until *time.Time, interval time.Duration)
 }

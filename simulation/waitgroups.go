@@ -7,14 +7,14 @@ import (
 )
 
 type waitGroups struct {
-	waitGroups map[string]*sync.WaitGroup
+	waitGroups map[string]*waitGroup
 
 	mu sync.RWMutex
 }
 
 func newWaitGroups() *waitGroups {
 	return &waitGroups{
-		waitGroups: make(map[string]*sync.WaitGroup),
+		waitGroups: make(map[string]*waitGroup),
 	}
 }
 
@@ -23,7 +23,7 @@ func (w *waitGroups) new(name string) {
 	defer w.mu.Unlock()
 
 	if _, exists := w.waitGroups[name]; !exists {
-		w.waitGroups[name] = &sync.WaitGroup{}
+		w.waitGroups[name] = &waitGroup{}
 	}
 }
 
@@ -35,7 +35,7 @@ func (w *waitGroups) add(name string, delta int) {
 		panic(fmt.Sprintf("wait group for \"%s\" does not exist", name))
 	}
 
-	w.waitGroups[name].Add(delta)
+	w.waitGroups[name].add(delta)
 }
 
 func (w *waitGroups) done(name string) {
@@ -46,7 +46,7 @@ func (w *waitGroups) done(name string) {
 	}
 	w.mu.RUnlock()
 
-	w.waitGroups[name].Done()
+	w.waitGroups[name].done()
 }
 
 func (w *waitGroups) waitFor(names ...string) {
@@ -67,7 +67,7 @@ func (w *waitGroups) waitFor(names ...string) {
 		for _, name := range names {
 			if wg, exists := w.waitGroups[name]; exists {
 				w.mu.RUnlock() // Unlock before waiting to avoid deadlocks
-				wg.Wait()
+				wg.wait()
 				w.mu.RLock() // Reacquire the lock after waiting
 			} else {
 				remainingNames = append(remainingNames, name)
@@ -85,11 +85,11 @@ func (w *waitGroups) waitFor(names ...string) {
 
 func (w *waitGroups) wait() {
 	w.mu.RLock()
-	var waitGroups = make(map[string]*sync.WaitGroup, len(w.waitGroups))
+	var waitGroups = make(map[string]*waitGroup, len(w.waitGroups))
 	maps.Copy(waitGroups, w.waitGroups)
 	w.mu.RUnlock()
 
 	for _, wg := range waitGroups {
-		wg.Wait()
+		wg.wait()
 	}
 }

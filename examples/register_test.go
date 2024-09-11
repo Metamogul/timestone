@@ -15,16 +15,16 @@ type register struct {
 	counter int
 }
 
-type Action func(timestone.ActionContext)
+type Action func(context.Context)
 
-func (a Action) Perform(ctx timestone.ActionContext) { a(ctx) }
+func (a Action) Perform(ctx context.Context) { a(ctx) }
 
 func (a Action) Name() string { return "" }
 
 func (r *register) incrementAfterOneMinute(scheduler timestone.Scheduler) {
 	scheduler.PerformAfter(
 		context.Background(),
-		Action(func(timestone.ActionContext) {
+		Action(func(context.Context) {
 			// Simulate execution time
 			time.Sleep(100 * time.Millisecond)
 
@@ -39,7 +39,7 @@ func (r *register) incrementEveryMinute(scheduler timestone.Scheduler) {
 
 	scheduler.PerformRepeatedly(
 		context.Background(),
-		Action(func(timestone.ActionContext) {
+		Action(func(context.Context) {
 			mu.Lock()
 
 			// Simulate execution time
@@ -60,7 +60,7 @@ func Test_incrementAfterOneMinute(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	scheduler := simulation.NewScheduler(now)
-	scheduler.SetDefaultMode(simulation.ScheduleModeAsync)
+	scheduler.SetDefaultMode(simulation.ExecModeAsync)
 
 	r := &register{}
 
@@ -76,7 +76,7 @@ func Test_incrementEveryMinute(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	scheduler := simulation.NewScheduler(now)
-	scheduler.SetDefaultMode(simulation.ScheduleModeAsync)
+	scheduler.SetDefaultMode(simulation.ExecModeAsync)
 
 	r := &register{}
 

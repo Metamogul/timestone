@@ -59,7 +59,7 @@ func newFooProcessor(cache *processingCache, scheduler timestone.Scheduler) *foo
 	}
 }
 
-func (a *fooProcessor) invoke(timestone.ActionContext) {
+func (a *fooProcessor) invoke(context.Context) {
 	for key, value := range a.cache.getContent() {
 		time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
 		a.cache.set(key, value+"foo")
@@ -79,7 +79,7 @@ func newBarProcessor(cache *processingCache, scheduler timestone.Scheduler) *bar
 	}
 }
 
-func (m *barProcessor) invoke(ctx timestone.ActionContext) {
+func (m *barProcessor) invoke(ctx context.Context) {
 	wg := &sync.WaitGroup{}
 
 	for key, value := range m.cache.getContent() {
@@ -89,7 +89,7 @@ func (m *barProcessor) invoke(ctx timestone.ActionContext) {
 		m.cache.set(key, value+"bar")
 
 		m.scheduler.PerformNow(ctx, timestone.NewSimpleAction(
-			func(timestone.ActionContext) {
+			func(context.Context) {
 				time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
 
 				value := m.cache.get(key)
@@ -99,7 +99,6 @@ func (m *barProcessor) invoke(ctx timestone.ActionContext) {
 			"barPostprocessingBaz",
 		))
 	}
-	ctx.DoneSchedulingNewActions()
 	wg.Wait()
 }
 
@@ -153,10 +152,10 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo before bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.SetDefaultMode(simulation.ScheduleModeAsync)
+				s.SetDefaultMode(simulation.ExecModeAsync)
 				s.ConfigureEvent("barProcessing", nil, simulation.EventConfiguration{
-					RecursiveMode:  simulation.RecursiveModeWaitForActions,
-					WaitForActions: []string{"fooProcessing"},
+					WaitForActions:     []string{"fooProcessing"},
+					WantsNewGenerators: map[string]int{"barPostprocessingBaz": 5},
 				})
 			},
 			result: "foobarbaz",
@@ -164,12 +163,12 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo after bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.SetDefaultMode(simulation.ScheduleModeAsync)
+				s.SetDefaultMode(simulation.ExecModeAsync)
 				s.ConfigureEvent("fooProcessing", nil, simulation.EventConfiguration{
 					WaitForActions: []string{"barProcessing", "barPostprocessingBaz"},
 				})
 				s.ConfigureEvent("barProcessing", nil, simulation.EventConfiguration{
-					RecursiveMode: simulation.RecursiveModeWaitForActions,
+					WantsNewGenerators: map[string]int{"barPostprocessingBaz": 5},
 				})
 			},
 			result: "barbazfoo",
@@ -177,14 +176,14 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo after bar, sequential",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.SetDefaultMode(simulation.ScheduleModeAsync)
+				s.SetDefaultMode(simulation.ExecModeAsync)
 				s.ConfigureEvent("fooProcessing", nil, simulation.EventConfiguration{
-					ScheduleMode: simulation.ScheduleModeSequential,
-					Priority:     2,
+					ExecMode: simulation.ExecModeSequential,
+					Priority: 2,
 				})
 				s.ConfigureEvent("barProcessing", nil, simulation.EventConfiguration{
-					RecursiveMode: simulation.RecursiveModeWaitForActions,
-					Priority:      1,
+					WantsNewGenerators: map[string]int{"barPostprocessingBaz": 5},
+					Priority:           1,
 				})
 			},
 			result: "barbazfoo",

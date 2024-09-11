@@ -23,7 +23,7 @@ func (s *Scheduler) PerformNow(ctx context.Context, action timestone.Action) {
 		case <-ctx.Done():
 			return
 		default:
-			action.Perform(newActionContext(ctx, s.Clock))
+			action.Perform(context.WithValue(ctx, timestone.ActionContextClockKey, s.Clock))
 		}
 	}()
 }
@@ -32,7 +32,7 @@ func (s *Scheduler) PerformAfter(ctx context.Context, action timestone.Action, d
 	go func() {
 		select {
 		case <-time.After(duration):
-			action.Perform(newActionContext(ctx, s.Clock))
+			action.Perform(context.WithValue(ctx, timestone.ActionContextClockKey, s.Clock))
 		case <-ctx.Done():
 			return
 		}
@@ -53,7 +53,7 @@ func (s *Scheduler) PerformRepeatedly(ctx context.Context, action timestone.Acti
 		for {
 			select {
 			case <-ticker.C:
-				action.Perform(newActionContext(ctx, s.Clock))
+				action.Perform(context.WithValue(ctx, timestone.ActionContextClockKey, s.Clock))
 			case <-timer.C:
 				return
 			case <-ctx.Done():

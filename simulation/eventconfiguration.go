@@ -2,33 +2,20 @@ package simulation
 
 import "time"
 
-type ScheduleMode int
+type ExecMode int
 
 const (
-	ScheduleModeUndefined ScheduleMode = iota
-	// ScheduleModeSequential configures an action to execute in the go routine the
+	ExecModeUndefined ExecMode = iota
+	// ExecModeSequential configures an action to execute in the go routine the
 	// scheduler was started in. The scheduler will wait for all
 	// previously started actions to finish before performing a serial
 	// action.
-	ScheduleModeSequential
-	// ScheduleModeAsync configures an action to execute in its own go routine.
+	ExecModeSequential
+	// ExecModeAsync configures an action to execute in its own go routine.
 	// Before execution the scheduler will wait for all actions to complete that
 	// have been configured for the action. Use this mode if actions implement
 	// their own syncing logic.
-	ScheduleModeAsync
-)
-
-type RecursiveMode int
-
-const (
-	// Default assumes that an action will not schedule more actions.
-	RecursiveModeDefault = iota
-	// RecursiveModeWaitForActions makes the scheduler wait for more actions
-	// being scheduled from inside an action. Call DoneSchedulingNewActions()
-	// on the context inside the action to signal the scheduler to continue
-	// with its event loop. This has no effect for actions scheduled in
-	// ScheduleModeSequential.
-	RecursiveModeWaitForActions
+	ExecModeAsync
 )
 
 const (
@@ -38,27 +25,24 @@ const (
 )
 
 type EventConfiguration struct {
-	// Assign a ScheduleMode to control how an action is scheduled to be
-	// executed. This will override the schedulers default behaviour if
-	// a default behaviour has been configured.
-	ScheduleMode ScheduleMode
-	// Per default, the scheduler assumes that an action will not schedule
-	// more actions. If an action attemps to schedule more actions and this
-	// action was scheduled to be executed asynchronously, this can lead to
-	// a situation where the event loop stops because the newly scheduled events
-	// arriving from the scheduling action's goroutine haven't made it to the
-	// buffer yet.
-	// To prevent this, assign the RecursiveModeWaitForActions to any action,
-	// that is scheduled asynchronously and will schedule more actions.
-	RecursiveMode RecursiveMode
+	// Assign a ExecMode to control how an action is executed. This will
+	// override the schedulers default behaviour if a default behaviour
+	// has been configured.
+	ExecMode ExecMode
 	// Assign a Priority to define scheduling order in case of simultaneous
 	// actions.
 	Priority int
-	// Delay the execution of an action until all WaitForActions have been
-	// completed. This doesn't change the behaviour for actions scheduled
-	// in ScheduleModeSequential which always waits for every other action
-	// to complete.
+	// Delay the start of the execution of an action until the execution of
+	// all WaitForActions has been completed. This doesn't change the
+	// behaviour for actions scheduled in ExecModeSequential which always
+	// waits for every other scheduled action to complete execution.
 	WaitForActions []string
+	// Signal the Scheduler that the configured event is supposed to add more
+	// event generators to the schedulers queue. The key of the map is the
+	// name of the events spawned by the generator, while the value is the
+	// number of corresponding new event generators the Scheduler will
+	// expect to hold before continuing.
+	WantsNewGenerators map[string]int
 }
 
 type nameAndTimeKey struct {
@@ -70,7 +54,7 @@ type eventConfigurations struct {
 	configsByName        map[string]*EventConfiguration
 	configsByNameAndTime map[nameAndTimeKey]*EventConfiguration
 
-	defaultScheduleMode ScheduleMode
+	defaultExecMode ExecMode
 }
 
 func newEventConfigurations() *eventConfigurations {
@@ -101,20 +85,12 @@ func (e *eventConfigurations) get(event *Event) *EventConfiguration {
 	return nil
 }
 
-func (e *eventConfigurations) getScheduleMode(event *Event) ScheduleMode {
-	if config := e.get(event); config != nil && config.ScheduleMode != ScheduleModeUndefined {
-		return config.ScheduleMode
+func (e *eventConfigurations) getExecMode(event *Event) ExecMode {
+	if config := e.get(event); config != nil && config.ExecMode != ExecModeUndefined {
+		return config.ExecMode
 	}
 
-	return e.defaultScheduleMode
-}
-
-func (e *eventConfigurations) getRecursiveMode(event *Event) RecursiveMode {
-	if config := e.get(event); config != nil {
-		return config.RecursiveMode
-	}
-
-	return RecursiveModeDefault
+	return e.defaultExecMode
 }
 
 func (e *eventConfigurations) getPriority(event *Event) int {
@@ -131,4 +107,12 @@ func (e *eventConfigurations) getBlockingActions(event *Event) []string {
 	}
 
 	return []string{}
+}
+
+func (e *eventConfigurations) getWantedNewGenerators(event *Event) map[string]int {
+	if config := e.get(event); config != nil {
+		return config.WantsNewGenerators
+	}
+
+	return make(map[string]int)
 }

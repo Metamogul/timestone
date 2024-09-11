@@ -8,13 +8,13 @@ import (
 )
 
 type singleEventGenerator struct {
-	*Event
-	ctx context.Context
+	event *Event
+	ctx   context.Context
 }
 
 func newSingleEventGenerator(ctx context.Context, action timestone.Action, time time.Time) *singleEventGenerator {
 	return &singleEventGenerator{
-		Event: NewEvent(ctx, action, time),
+		event: NewEvent(ctx, action, time),
 		ctx:   ctx,
 	}
 }
@@ -24,9 +24,9 @@ func (s *singleEventGenerator) Pop() *Event {
 		panic(ErrEventGeneratorFinished)
 	}
 
-	defer func() { s.Event = nil }()
+	defer func() { s.event = nil }()
 
-	return s.Event
+	return s.event
 }
 
 func (s *singleEventGenerator) Peek() Event {
@@ -34,9 +34,9 @@ func (s *singleEventGenerator) Peek() Event {
 		panic(ErrEventGeneratorFinished)
 	}
 
-	return *s.Event
+	return *s.event
 }
 
 func (s *singleEventGenerator) Finished() bool {
-	return s.Event == nil || s.ctx.Err() != nil
+	return s.event == nil || s.ctx.Err() != nil
 }

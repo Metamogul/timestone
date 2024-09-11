@@ -112,22 +112,22 @@ func Test_eventConfigurations_get(t *testing.T) {
 	}
 }
 
-func Test_eventConfigurations_getScheduleMode(t *testing.T) {
+func Test_eventConfigurations_getExecMode(t *testing.T) {
 	t.Parallel()
 
-	defaultMode := ScheduleModeSequential
+	defaultMode := ExecModeSequential
 
 	testcases := []struct {
 		name          string
 		configsByName map[string]*EventConfiguration
-		wantMode      ScheduleMode
+		wantMode      ExecMode
 	}{
 		{
 			name: "valid config",
 			configsByName: map[string]*EventConfiguration{
-				"test": {ScheduleMode: ScheduleModeAsync},
+				"test": {ExecMode: ExecModeAsync},
 			},
-			wantMode: ScheduleModeAsync,
+			wantMode: ExecModeAsync,
 		},
 		{
 			name: "config with undefined schedule mode",
@@ -148,7 +148,7 @@ func Test_eventConfigurations_getScheduleMode(t *testing.T) {
 			t.Parallel()
 
 			e := newEventConfigurations()
-			e.defaultScheduleMode = defaultMode
+			e.defaultExecMode = defaultMode
 			e.configsByName = tt.configsByName
 
 			mockAction := timestone.NewMockAction(t)
@@ -158,51 +158,7 @@ func Test_eventConfigurations_getScheduleMode(t *testing.T) {
 				Twice()
 			mockEvent := NewEvent(context.Background(), mockAction, time.Time{})
 
-			// Valid ScheduleModeAsync has been provided in event config
-			mode := e.getScheduleMode(mockEvent)
-			require.Equal(t, tt.wantMode, mode)
-		})
-	}
-}
-
-func Test_eventConfigurations_getRecursiveMode(t *testing.T) {
-	t.Parallel()
-
-	testcases := []struct {
-		name          string
-		configsByName map[string]*EventConfiguration
-		wantMode      RecursiveMode
-	}{
-		{
-			name: "valid config",
-			configsByName: map[string]*EventConfiguration{
-				"test": {RecursiveMode: RecursiveModeWaitForActions},
-			},
-			wantMode: RecursiveModeWaitForActions,
-		},
-		{
-			name:          "no config for event",
-			configsByName: map[string]*EventConfiguration{},
-			wantMode:      RecursiveModeDefault,
-		},
-	}
-
-	for _, tt := range testcases {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			e := newEventConfigurations()
-			e.configsByName = tt.configsByName
-
-			mockAction := timestone.NewMockAction(t)
-			mockAction.EXPECT().
-				Name().
-				Return("test").
-				Twice()
-			mockEvent := NewEvent(context.Background(), mockAction, time.Time{})
-
-			// Valid ScheduleModeAsync has been provided in event config
-			mode := e.getRecursiveMode(mockEvent)
+			mode := e.getExecMode(mockEvent)
 			require.Equal(t, tt.wantMode, mode)
 		})
 	}
@@ -244,7 +200,6 @@ func Test_eventConfigurations_getPriority(t *testing.T) {
 				Twice()
 			mockEvent := NewEvent(context.Background(), mockAction, time.Time{})
 
-			// Valid ScheduleModeAsync has been provided in event config
 			priority := e.getPriority(mockEvent)
 			require.Equal(t, tt.wantPriority, priority)
 		})
@@ -287,9 +242,50 @@ func Test_eventConfigurations_getBlockingActions(t *testing.T) {
 				Twice()
 			mockEvent := NewEvent(context.Background(), mockAction, time.Time{})
 
-			// Valid ScheduleModeAsync has been provided in event config
 			blockingActions := e.getBlockingActions(mockEvent)
 			require.Equal(t, tt.wantBlockingActions, blockingActions)
+		})
+	}
+}
+
+func Test_eventConfigurations_getWantedGenerators(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name                      string
+		configsByName             map[string]*EventConfiguration
+		expectWantedNewGenerators map[string]int
+	}{
+		{
+			name: "valid config",
+			configsByName: map[string]*EventConfiguration{
+				"test": {WantsNewGenerators: map[string]int{"testWanted": 1}},
+			},
+			expectWantedNewGenerators: map[string]int{"testWanted": 1},
+		},
+		{
+			name:                      "no config for event",
+			configsByName:             map[string]*EventConfiguration{},
+			expectWantedNewGenerators: make(map[string]int),
+		},
+	}
+
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newEventConfigurations()
+			e.configsByName = tt.configsByName
+
+			mockAction := timestone.NewMockAction(t)
+			mockAction.EXPECT().
+				Name().
+				Return("test").
+				Twice()
+			mockEvent := NewEvent(context.Background(), mockAction, time.Time{})
+
+			wantedNewGenerators := e.getWantedNewGenerators(mockEvent)
+			require.Equal(t, tt.expectWantedNewGenerators, wantedNewGenerators)
 		})
 	}
 }

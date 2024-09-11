@@ -19,8 +19,8 @@ func TestScheduler_PerformNow(t *testing.T) {
 
 	mockAction := timestone.NewMockAction(t)
 	mockAction.EXPECT().
-		Perform(newActionContext(ctx, clock)).
-		Run(func(timestone.ActionContext) { wg.Done() }).
+		Perform(context.WithValue(ctx, timestone.ActionContextClockKey, clock)).
+		Run(func(context.Context) { wg.Done() }).
 		Once()
 
 	s := &Scheduler{Clock: clock}
@@ -51,8 +51,8 @@ func TestScheduler_PerformAfter(t *testing.T) {
 
 	mockAction := timestone.NewMockAction(t)
 	mockAction.EXPECT().
-		Perform(newActionContext(ctx, clock)).
-		Run(func(timestone.ActionContext) { wg.Done() }).
+		Perform(context.WithValue(ctx, timestone.ActionContextClockKey, clock)).
+		Run(func(context.Context) { wg.Done() }).
 		Once()
 
 	s := &Scheduler{Clock: clock}
@@ -83,8 +83,8 @@ func TestScheduler_PerformRepeatedly_until(t *testing.T) {
 
 	mockAction := timestone.NewMockAction(t)
 	mockAction.EXPECT().
-		Perform(newActionContext(ctx, clock)).
-		Run(func(timestone.ActionContext) { wg.Done() }).
+		Perform(context.WithValue(ctx, timestone.ActionContextClockKey, clock)).
+		Run(func(context.Context) { wg.Done() }).
 		Twice()
 
 	s := &Scheduler{Clock: Clock{}}
@@ -101,7 +101,7 @@ func TestScheduler_PerformRepeatedly_indefinitely(t *testing.T) {
 
 	mockAction := timestone.NewMockAction(t)
 	mockAction.EXPECT().
-		Perform(newActionContext(ctx, clock)).
+		Perform(context.WithValue(ctx, timestone.ActionContextClockKey, clock)).
 		Twice()
 
 	s := &Scheduler{Clock: Clock{}}
