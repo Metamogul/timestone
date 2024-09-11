@@ -1,8 +1,9 @@
 # Timestone 🗿
 
-Timestone is a library to improve unit tests for time-dependent, concurrent go code. Existing libraries such as 
-[Quartz](https://github.com/coder/quartz) or [Clock](github.com/benbjohnson/clock) show the need for such a tool, yet have various shortcomings, for example not being able 
-to reliably prevent race-conditions in tests, or being difficult to read and understand when used.
+Timestone is a library to create deterministic and easy-to-understand unit tests for time-dependent, concurrent go 
+code. Existing libraries such as [Quartz](https://github.com/coder/quartz) or [Clock](github.com/benbjohnson/clock) 
+show the need for such a tool, yet have various shortcomings, for example not being able to reliably prevent 
+race-conditions in tests, or being difficult to read and understand when used.
 
 ### Goals
 
