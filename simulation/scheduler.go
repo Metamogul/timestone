@@ -160,7 +160,7 @@ func (s *Scheduler) scheduleEvent(event *Event) {
 		event.Perform(context.WithValue(event.Context, timestone.ActionContextClockKey, newClock(event.Time)))
 
 	default:
-		panic(fmt.Sprintf("No schedule mode defined for action %s", event.Action.Name()))
+		panic(fmt.Sprintf("No exec mode defined for action %s", event.Action.Name()))
 	}
 
 	wantedActionNames := slices.Collect(maps.Keys(wantedNewGenerators))

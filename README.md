@@ -61,15 +61,16 @@ While the `system.Scheduler` implementation of the `Scheduler` interface uses th
 primitives, the `simulation.Scheduler` implementation is where the real magic happens.
 
 Rather than immediately running an action within a goroutine, the `simulation.Scheduler` creates an event generator for 
-it. The events it produces will then be executed from either the `ForwardOne` or `Forward` methods, advancing the 
+it. The events it materializes will then be executed from either the `ForwardOne` or `Forward` methods, advancing the 
 `simulation.Scheduler`’s clock either to the next event or through all events scheduled to occur within a specified 
 `time.Duration`. Additional configuration can be provided for individual actions or entire groups, allowing control over 
-the scheduling order of simultaneous events or injecting dependencies between actions, delaying the execution of certain 
+the execution order of simultaneous events or injecting dependencies between actions, delaying the execution of certain 
 actions until their dependencies have completed.
 
 To provide this level of control, the `simulation.Scheduler` uses a run loop that iterates over all events in a 
 well-defined order until no event remains. For each event, its configuration and default settings are considered to 
-determine whether it should execute sequentially or asynchronously, or if it must wait on other events.
+determine whether it should execute sequentially or asynchronously, if it must wait on other events, or if it will 
+register a new event generator the run loop has to wait for.
 
 ### Action
 
@@ -91,11 +92,11 @@ either use the included `SimpleAction` as a convenient wrapper or create your ow
 An `Event` is an internal concept of the `simulation.Scheduler` that combines an `Action` with a `time.Time` that 
 determines when it should be executed. These events are produced from actions by `simulation.EventGenerator`s. For 
 example, when calling `simulation.Scheduler.PerformRepeatedly`, a corresponding event generator is registered, which 
-repeatedly materialized events into the event queue according to its settings.
+repeatedly materializes events into the event queue according to its settings.
 
 When using the `simulation.Scheduler` for deterministic unit tests, you configure events by providing 
 `EventConfiguration`s. These configurations can target events by the name of their embedded action, or individually by 
-their name and execution time.
+their action's name and execution time.
 
 ### Event generators and event queue
 
@@ -116,13 +117,15 @@ type EventGenerator interface {
 This interface is then used by the event queue to materialize and sort new events as they are needed in a stream like
 fashion.
 
-Knowing this concept is important when it comes to designing tests for business logic where actions will schedule more
-actions (which might schedule more actions). Imagine you have an action `firstAction` that you want to execute
-asynchronously, which is supposed to schedule a `secondAction` via `simulation.Scheduler.PerformNow` that runs a tested 
-operation. In this case the `simulation.Scheduler`'s run loop needs to wait for the generator later materializing 
-`secondAction` to be added.
+Knowing this concept is important when it comes to designing tests for business logic where actions will recursively 
+schedule more actions (which might schedule more actions). Imagine you have an action `firstAction` that you want to 
+execute asynchronously, which is supposed to schedule a `secondAction` via `simulation.Scheduler.PerformNow`. 
+In this case the `simulation.Scheduler`'s run loop needs to wait for the generator later materializing 
+`secondAction` to be added – otherwise the run loop might terminate in the next iteration, not knowing yet that a new 
+generator will provide another event shortly.
 
-In this case, you add a new `simulation.EventConfiguration` for the `firstAction` that looks probably like:
+To avoid this race condition, you add a new `simulation.EventConfiguration` for the `firstAction` that looks probably 
+like:
 
 ```golang
 scheduler.ConfigureEvent("firstAction", nil, EventConfiguration{
@@ -131,7 +134,7 @@ scheduler.ConfigureEvent("firstAction", nil, EventConfiguration{
 ```
 
 Now after executing every `firstAction` event, the scheduler will pause its run loop until a generator producing 
-`secondAction` events has been added.
+`secondAction` events has been registered.
 
 ## Contributing
 
