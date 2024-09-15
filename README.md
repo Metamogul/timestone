@@ -48,9 +48,9 @@ encapsulating the underlying complexity:
 ```go
 type Scheduler interface {
     Clock
-    PerformNow(ctx context.Context, action Action)
-    PerformAfter(ctx context.Context, action Action, duration time.Duration)
-    PerformRepeatedly(ctx context.Context, action Action, until *time.Time, interval time.Duration)
+    PerformNow(ctx context.Context, action Action, tags ...string)
+    PerformAfter(ctx context.Context, action Action, duration time.Duration, tags ...string)
+    PerformRepeatedly(ctx context.Context, action Action, until *time.Time, interval time.Duration, tags ...string)
 }
 ```
 
@@ -75,13 +75,11 @@ register a new event generator the run loop has to wait for.
 
 ### Action
 
-An `Action` defines an interface for a function to be executed, along with a name used to associate it with a 
-configuration.
+An `Action` defines an interface for a function to be executed.
 
 ```golang
 type Action interface {
-	Perform(context.Context)
-	Name() string
+    Perform(context.Context)
 }
 ```
 
@@ -90,14 +88,14 @@ either use the included `SimpleAction` as a convenient wrapper or create your ow
 
 ### Events and event generators
 
-An `Event` is an internal concept of the `simulation.Scheduler` that combines an `Action` with a `time.Time` that 
-determines when it should be executed. These events are produced from actions by `simulation.EventGenerator`s. For 
-example, when calling `simulation.Scheduler.PerformRepeatedly`, a corresponding event generator is registered, which 
-repeatedly materializes events into the event queue according to its settings.
+An `Event` is an internal concept of the `simulation.Scheduler` that combines an `Action` with some identifying `Tags` 
+and a `time.Time` that determines when it should be executed. These events are produced from actions by 
+`simulation.EventGenerator`s. For example, when calling `simulation.Scheduler.PerformRepeatedly`, a corresponding event 
+generator is registered, which repeatedly materializes events into the event queue according to its settings.
 
 When using the `simulation.Scheduler` for deterministic unit tests, you configure events by providing 
-`EventConfiguration`s. These configurations can target events by the name of their embedded action, or individually by 
-their action's name and execution time.
+`EventConfiguration`s. These configurations can target events by the tags, or more specifically by including their 
+ execution time.
 
 ### Event generators and event queue
 
@@ -108,10 +106,9 @@ purposes).
 
 ```golang
 type EventGenerator interface {
-	Pop() *Event
-	Peek() Event
-
-	Finished() bool
+    Pop() *Event
+    Peek() Event
+    Finished() bool
 }
 ```
 
@@ -129,9 +126,15 @@ To avoid this race condition, you add a new `simulation.EventConfiguration` for 
 like:
 
 ```golang
-scheduler.ConfigureEvent("firstAction", nil, EventConfiguration{
-    WantsNewGenerators: map[string]int{ "secondAction", 1 }
-})
+s.ConfigureEvent(
+    event.Config{
+        AddsGenerators: []*event.GeneratorExpectation{
+            Tags: []string{"secondAction"}, Count: 1},
+        },
+        }, 
+    nil, 
+    "firstAction", 
+)
 ```
 
 Now after executing every `firstAction` event, the scheduler will pause its run loop until a generator producing 
