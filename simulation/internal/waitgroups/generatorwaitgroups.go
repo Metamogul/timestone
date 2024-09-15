@@ -6,19 +6,19 @@ import (
 	"sync"
 )
 
-type WaitGroups struct {
+type GeneratorWaitGroups struct {
 	waitGroups *tags.TaggedStore[*waitGroup]
 
 	mu sync.RWMutex
 }
 
-func NewWaitGroups() *WaitGroups {
-	return &WaitGroups{
+func NewGeneratorWaitGroups() *GeneratorWaitGroups {
+	return &GeneratorWaitGroups{
 		waitGroups: tags.NewTaggedStore[*waitGroup](),
 	}
 }
 
-func (w *WaitGroups) Add(delta int, tags []string) {
+func (w *GeneratorWaitGroups) Add(delta int, tags []string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (w *WaitGroups) Add(delta int, tags []string) {
 	matchingEntry.add(delta)
 }
 
-func (w *WaitGroups) Done(tags []string) {
+func (w *GeneratorWaitGroups) Done(tags []string) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -45,7 +45,7 @@ func (w *WaitGroups) Done(tags []string) {
 	}
 }
 
-func (w *WaitGroups) WaitFor(tags []string) {
+func (w *GeneratorWaitGroups) WaitFor(tags []string) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 

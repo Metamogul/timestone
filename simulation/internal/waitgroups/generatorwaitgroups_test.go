@@ -6,29 +6,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_NewWaitGroups(t *testing.T) {
+func Test_NewGeneratorWaitGroups(t *testing.T) {
 	t.Parallel()
 
-	newWaitGroups := NewWaitGroups()
+	newWaitGroups := NewGeneratorWaitGroups()
 
 	require.NotNil(t, newWaitGroups)
 	require.Empty(t, newWaitGroups.waitGroups.All())
 }
 
-func Test_WaitGroups_Add(t *testing.T) {
+func Test_GeneratorWaitGroups_Add(t *testing.T) {
 	t.Parallel()
 
-	w := NewWaitGroups()
+	w := NewGeneratorWaitGroups()
 
 	w.Add(1, []string{"test1"})
 	go func() { w.Done([]string{"test1", "test2"}) }()
 	w.WaitFor([]string{"test1"})
 }
 
-func Test_WaitGroups_Done(t *testing.T) {
+func Test_GeneratorWaitGroups_Done(t *testing.T) {
 	t.Parallel()
 
-	w := NewWaitGroups()
+	w := NewGeneratorWaitGroups()
 
 	t.Run("one exact matching call", func(t *testing.T) {
 		w.Add(1, []string{"testGroup", "test1"})
@@ -59,7 +59,7 @@ func Test_WaitGroups_Done(t *testing.T) {
 
 }
 
-func Test_WaitGroups_WaitFor(t *testing.T) {
+func Test_GeneratorWaitGroups_WaitFor(t *testing.T) {
 	t.Parallel()
 
 	// TODO: add more cases
@@ -69,7 +69,7 @@ func Test_WaitGroups_WaitFor(t *testing.T) {
 	t.Run("wait group for tags exists", func(t *testing.T) {
 		t.Parallel()
 
-		w := NewWaitGroups()
+		w := NewGeneratorWaitGroups()
 
 		w.Add(1, []string{"test1", "test2"})
 		w.Add(1, []string{"test3", "test4"})
@@ -84,7 +84,7 @@ func Test_WaitGroups_WaitFor(t *testing.T) {
 	t.Run("wait group for tags doesn't exist", func(t *testing.T) {
 		t.Parallel()
 
-		w := NewWaitGroups()
+		w := NewGeneratorWaitGroups()
 		require.Panics(t, func() { w.WaitFor([]string{"test5", "test2"}) })
 	})
 }

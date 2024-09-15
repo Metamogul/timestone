@@ -52,7 +52,7 @@ func (e *EventWaitGroups) WaitFor(events []*event.Key) {
 	// in consequence also no WaitGroup for this name. Therefore we first
 	// Wait for "action2" (or all other actions that already have a
 	// corresponding WaitGroup) to give it a chance to spawn
-	// the missing WaitGroups and avoid a panic.
+	// the missing GeneratorWaitGroups and avoid a panic.
 
 	for len(events) > 0 {
 		var remainingEvents []*event.Key

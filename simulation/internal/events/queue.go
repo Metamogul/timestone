@@ -11,7 +11,7 @@ type Queue struct {
 	activeGenerators   []Generator
 	finishedGenerators []Generator
 
-	NewGeneratorsWaitGroups *waitgroups.WaitGroups
+	NewGeneratorsWaitGroups *waitgroups.GeneratorWaitGroups
 }
 
 func NewQueue(configs *Configs) *Queue {
@@ -19,7 +19,7 @@ func NewQueue(configs *Configs) *Queue {
 		configs:                 configs,
 		activeGenerators:        make([]Generator, 0),
 		finishedGenerators:      make([]Generator, 0),
-		NewGeneratorsWaitGroups: waitgroups.NewWaitGroups(),
+		NewGeneratorsWaitGroups: waitgroups.NewGeneratorWaitGroups(),
 	}
 
 	return queue
