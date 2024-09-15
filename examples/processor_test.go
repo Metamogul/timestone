@@ -79,11 +79,7 @@ func newBarProcessor(cache *processingCache, scheduler timestone.Scheduler) *bar
 }
 
 func (m *barProcessor) invoke(ctx context.Context) {
-	wg := &sync.WaitGroup{}
-
 	for key, value := range m.cache.getContent() {
-		wg.Add(1)
-
 		time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
 		m.cache.set(key, value+"bar")
 
@@ -94,13 +90,11 @@ func (m *barProcessor) invoke(ctx context.Context) {
 
 					value := m.cache.get(key)
 					m.cache.set(key, value+"baz")
-					wg.Done()
 				},
 			),
 			"barPostprocessingBaz",
 		)
 	}
-	wg.Wait()
 }
 
 type app struct {
@@ -169,6 +163,7 @@ func TestApp(t *testing.T) {
 			configureScheduler: func(s *simulation.Scheduler) {
 				s.ConfigureEvent(
 					event.Config{
+						Priority: 3,
 						WaitForEvents: []*event.Key{
 							{Tags: []string{"barProcessing"}},
 							{Tags: []string{"barPostprocessingBaz"}},
@@ -179,11 +174,18 @@ func TestApp(t *testing.T) {
 				)
 				s.ConfigureEvent(
 					event.Config{
+						Priority:       1,
 						AddsGenerators: []*event.GeneratorExpectation{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
 					},
 					nil,
 					"barProcessing",
 				)
+				s.ConfigureEvent(
+					event.Config{
+						Priority: 2,
+					},
+					nil,
+					"barPostprocessingBaz")
 			},
 			result: "barbazfoo",
 		},
