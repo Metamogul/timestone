@@ -17,7 +17,7 @@ type Scheduler struct {
 	Clock
 }
 
-func (s *Scheduler) PerformNow(ctx context.Context, action timestone.Action) {
+func (s *Scheduler) PerformNow(ctx context.Context, action timestone.Action, _ ...string) {
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -28,7 +28,7 @@ func (s *Scheduler) PerformNow(ctx context.Context, action timestone.Action) {
 	}()
 }
 
-func (s *Scheduler) PerformAfter(ctx context.Context, action timestone.Action, duration time.Duration) {
+func (s *Scheduler) PerformAfter(ctx context.Context, action timestone.Action, duration time.Duration, _ ...string) {
 	go func() {
 		select {
 		case <-time.After(duration):
@@ -39,7 +39,7 @@ func (s *Scheduler) PerformAfter(ctx context.Context, action timestone.Action, d
 	}()
 }
 
-func (s *Scheduler) PerformRepeatedly(ctx context.Context, action timestone.Action, until *time.Time, interval time.Duration) {
+func (s *Scheduler) PerformRepeatedly(ctx context.Context, action timestone.Action, until *time.Time, interval time.Duration, _ ...string) {
 	ticker := time.NewTicker(interval)
 
 	var timer *time.Timer

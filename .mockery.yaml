@@ -6,6 +6,6 @@ packages:
   github.com/metamogul/timestone:
     interfaces:
       Action:
-  github.com/metamogul/timestone/simulation:
+  github.com/metamogul/timestone/simulation/internal/events:
     interfaces:
-      EventGenerator:
+      Generator:

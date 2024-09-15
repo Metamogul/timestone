@@ -2,15 +2,15 @@ package examples
 
 import (
 	"context"
-	"fmt"
+	"github.com/metamogul/timestone/simulation"
+	"github.com/metamogul/timestone/simulation/event"
+	"github.com/stretchr/testify/require"
 	"math/rand/v2"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/metamogul/timestone"
-	"github.com/metamogul/timestone/simulation"
-	"github.com/stretchr/testify/require"
 )
 
 const simulateLoadMilliseconds = 100
@@ -64,7 +64,6 @@ func (a *fooProcessor) invoke(context.Context) {
 		time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
 		a.cache.set(key, value+"foo")
 	}
-	fmt.Println("leaving add foo")
 }
 
 type barProcessor struct {
@@ -88,16 +87,18 @@ func (m *barProcessor) invoke(ctx context.Context) {
 		time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
 		m.cache.set(key, value+"bar")
 
-		m.scheduler.PerformNow(ctx, timestone.NewSimpleAction(
-			func(context.Context) {
-				time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
+		m.scheduler.PerformNow(ctx,
+			timestone.SimpleAction(
+				func(context.Context) {
+					time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
 
-				value := m.cache.get(key)
-				m.cache.set(key, value+"baz")
-				wg.Done()
-			},
+					value := m.cache.get(key)
+					m.cache.set(key, value+"baz")
+					wg.Done()
+				},
+			),
 			"barPostprocessingBaz",
-		))
+		)
 	}
 	wg.Wait()
 }
@@ -135,8 +136,8 @@ func (a *app) seedCache() {
 }
 
 func (a *app) run() {
-	a.scheduler.PerformRepeatedly(a.ctx, timestone.NewSimpleAction(a.fooProcessor.invoke, "fooProcessing"), nil, time.Hour)
-	a.scheduler.PerformRepeatedly(a.ctx, timestone.NewSimpleAction(a.barProcessor.invoke, "barProcessing"), nil, time.Hour)
+	a.scheduler.PerformRepeatedly(a.ctx, timestone.SimpleAction(a.fooProcessor.invoke), nil, time.Hour, "fooProcessing")
+	a.scheduler.PerformRepeatedly(a.ctx, timestone.SimpleAction(a.barProcessor.invoke), nil, time.Hour, "barProcessing")
 }
 
 func TestApp(t *testing.T) {
@@ -152,39 +153,37 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo before bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.SetDefaultMode(simulation.ExecModeAsync)
-				s.ConfigureEvent("barProcessing", nil, simulation.EventConfiguration{
-					WaitForActions:     []string{"fooProcessing"},
-					WantsNewGenerators: map[string]int{"barPostprocessingBaz": 5},
-				})
+				s.ConfigureEvent(
+					event.Config{
+						WaitForEvents:  []*event.Key{{Tags: []string{"fooProcessing"}}},
+						AddsGenerators: []*event.GeneratorExpectation{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
+					},
+					nil,
+					"barProcessing",
+				)
 			},
 			result: "foobarbaz",
 		},
 		{
 			name: "foo after bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.SetDefaultMode(simulation.ExecModeAsync)
-				s.ConfigureEvent("fooProcessing", nil, simulation.EventConfiguration{
-					WaitForActions: []string{"barProcessing", "barPostprocessingBaz"},
-				})
-				s.ConfigureEvent("barProcessing", nil, simulation.EventConfiguration{
-					WantsNewGenerators: map[string]int{"barPostprocessingBaz": 5},
-				})
-			},
-			result: "barbazfoo",
-		},
-		{
-			name: "foo after bar, sequential",
-			configureScheduler: func(s *simulation.Scheduler) {
-				s.SetDefaultMode(simulation.ExecModeAsync)
-				s.ConfigureEvent("fooProcessing", nil, simulation.EventConfiguration{
-					ExecMode: simulation.ExecModeSequential,
-					Priority: 2,
-				})
-				s.ConfigureEvent("barProcessing", nil, simulation.EventConfiguration{
-					WantsNewGenerators: map[string]int{"barPostprocessingBaz": 5},
-					Priority:           1,
-				})
+				s.ConfigureEvent(
+					event.Config{
+						WaitForEvents: []*event.Key{
+							{Tags: []string{"barProcessing"}},
+							{Tags: []string{"barPostprocessingBaz"}},
+						},
+					},
+					nil,
+					"fooProcessing",
+				)
+				s.ConfigureEvent(
+					event.Config{
+						AddsGenerators: []*event.GeneratorExpectation{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
+					},
+					nil,
+					"barProcessing",
+				)
 			},
 			result: "barbazfoo",
 		},

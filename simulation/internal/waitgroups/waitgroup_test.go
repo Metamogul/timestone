@@ -1,4 +1,4 @@
-package simulation
+package waitgroups
 
 import (
 	"testing"
@@ -14,25 +14,25 @@ func Test_waitGroup_add(t *testing.T) {
 		wantCount    int
 	}{
 		{
-			name:         "add zero",
+			name:         "set zero",
 			initialCount: 0,
 			addDelta:     0,
 			wantCount:    0,
 		},
 		{
-			name:         "add one",
+			name:         "set one",
 			initialCount: 0,
 			addDelta:     1,
 			wantCount:    1,
 		},
 		{
-			name:         "add multiple",
+			name:         "set multiple",
 			initialCount: 0,
 			addDelta:     10,
 			wantCount:    10,
 		},
 		{
-			name:         "add negative, count+delta < 0",
+			name:         "set negative, count+delta < 0",
 			initialCount: 1,
 			addDelta:     -2,
 			wantCount:    0,

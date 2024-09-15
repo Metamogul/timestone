@@ -1,4 +1,4 @@
-package simulation
+package events
 
 import (
 	"context"
@@ -7,24 +7,27 @@ import (
 	"github.com/metamogul/timestone"
 )
 
-type periodicEventGenerator struct {
+type PeriodicGenerator struct {
 	action   timestone.Action
 	from     time.Time
 	to       *time.Time
 	interval time.Duration
+
+	tags []string
 
 	nextEvent *Event
 
 	ctx context.Context
 }
 
-func newPeriodicEventGenerator(
+func NewPeriodicGenerator(
 	ctx context.Context,
 	action timestone.Action,
 	from time.Time,
 	to *time.Time,
 	interval time.Duration,
-) *periodicEventGenerator {
+	tags []string,
+) *PeriodicGenerator {
 	if action == nil {
 		panic("Action can't be nil")
 	}
@@ -41,13 +44,15 @@ func newPeriodicEventGenerator(
 		panic("interval must be shorter than timespan given by from and to")
 	}
 
-	firstEvent := NewEvent(ctx, action, from.Add(interval))
+	firstEvent := NewEvent(ctx, action, from.Add(interval), tags)
 
-	return &periodicEventGenerator{
+	return &PeriodicGenerator{
 		action:   action,
 		from:     from,
 		to:       to,
 		interval: interval,
+
+		tags: tags,
 
 		nextEvent: firstEvent,
 
@@ -55,25 +60,25 @@ func newPeriodicEventGenerator(
 	}
 }
 
-func (p *periodicEventGenerator) Pop() *Event {
+func (p *PeriodicGenerator) Pop() *Event {
 	if p.Finished() {
-		panic(ErrEventGeneratorFinished)
+		panic(ErrGeneratorFinished)
 	}
 
-	defer func() { p.nextEvent = NewEvent(p.ctx, p.action, p.nextEvent.Time.Add(p.interval)) }()
+	defer func() { p.nextEvent = NewEvent(p.ctx, p.action, p.nextEvent.Time.Add(p.interval), p.tags) }()
 
 	return p.nextEvent
 }
 
-func (p *periodicEventGenerator) Peek() Event {
+func (p *PeriodicGenerator) Peek() Event {
 	if p.Finished() {
-		panic(ErrEventGeneratorFinished)
+		panic(ErrGeneratorFinished)
 	}
 
 	return *p.nextEvent
 }
 
-func (p *periodicEventGenerator) Finished() bool {
+func (p *PeriodicGenerator) Finished() bool {
 	if p.ctx.Err() != nil {
 		return true
 	}

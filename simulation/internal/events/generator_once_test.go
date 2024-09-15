@@ -1,4 +1,4 @@
-package simulation
+package events
 
 import (
 	"context"
@@ -9,13 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_newSingleEventGenerator(t *testing.T) {
+func Test_NewOnceGenerator(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
+		ctx        context.Context
 		action     timestone.Action
 		actionTime time.Time
-		ctx        context.Context
+		tags       []string
 	}
 
 	ctx := context.Background()
@@ -23,30 +24,33 @@ func Test_newSingleEventGenerator(t *testing.T) {
 	tests := []struct {
 		name         string
 		args         args
-		want         *singleEventGenerator
+		want         *OnceGenerator
 		requirePanic bool
 	}{
 		{
 			name: "no Action",
 			args: args{
+				ctx:        ctx,
 				action:     nil,
 				actionTime: time.Time{},
-				ctx:        ctx,
+				tags:       []string{"test"},
 			},
 			requirePanic: true,
 		},
 		{
 			name: "success",
 			args: args{
+				ctx:        ctx,
 				action:     timestone.NewMockAction(t),
 				actionTime: time.Time{},
-				ctx:        ctx,
+				tags:       []string{"test"},
 			},
-			want: &singleEventGenerator{
+			want: &OnceGenerator{
 				event: &Event{
+					Context: ctx,
 					Action:  timestone.NewMockAction(t),
 					Time:    time.Time{},
-					Context: ctx,
+					tags:    []string{"test"},
 				},
 				ctx: ctx,
 			},
@@ -59,17 +63,17 @@ func Test_newSingleEventGenerator(t *testing.T) {
 
 			if tt.requirePanic {
 				require.Panics(t, func() {
-					_ = newSingleEventGenerator(tt.args.ctx, tt.args.action, tt.args.actionTime)
+					_ = NewOnceGenerator(tt.args.ctx, tt.args.action, tt.args.actionTime, tt.args.tags)
 				})
 				return
 			}
 
-			require.Equal(t, tt.want, newSingleEventGenerator(tt.args.ctx, tt.args.action, tt.args.actionTime))
+			require.Equal(t, tt.want, NewOnceGenerator(tt.args.ctx, tt.args.action, tt.args.actionTime, tt.args.tags))
 		})
 	}
 }
 
-func Test_singleEventGenerator_Pop(t *testing.T) {
+func Test_OnceGenerator_Pop(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -96,10 +100,10 @@ func Test_singleEventGenerator_Pop(t *testing.T) {
 		{
 			name: "success",
 			fields: fields{
-				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}),
+				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}, []string{"test"}),
 				ctx:   ctx,
 			},
-			want: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}),
+			want: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}, []string{"test"}),
 		},
 	}
 
@@ -107,30 +111,30 @@ func Test_singleEventGenerator_Pop(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := &singleEventGenerator{
+			o := &OnceGenerator{
 				event: tt.fields.event,
 				ctx:   tt.fields.ctx,
 			}
 
 			if tt.requirePanic {
 				require.Panics(t, func() {
-					_ = s.Pop()
+					_ = o.Pop()
 				})
 				return
 			}
 
-			require.Equal(t, tt.want, s.Pop())
+			require.Equal(t, tt.want, o.Pop())
 
 			if tt.want != nil {
-				require.True(t, s.Finished())
+				require.True(t, o.Finished())
 			} else {
-				require.False(t, s.Finished())
+				require.False(t, o.Finished())
 			}
 		})
 	}
 }
 
-func Test_singleEventGenerator_Peek(t *testing.T) {
+func Test_OnceGenerator_Peek(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -157,10 +161,10 @@ func Test_singleEventGenerator_Peek(t *testing.T) {
 		{
 			name: "success",
 			fields: fields{
-				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}),
+				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}, []string{"test"}),
 				ctx:   ctx,
 			},
-			want: *NewEvent(ctx, timestone.NewMockAction(t), time.Time{}),
+			want: *NewEvent(ctx, timestone.NewMockAction(t), time.Time{}, []string{"test"}),
 		},
 	}
 
@@ -168,25 +172,25 @@ func Test_singleEventGenerator_Peek(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := &singleEventGenerator{
+			o := &OnceGenerator{
 				event: tt.fields.event,
 				ctx:   tt.fields.ctx,
 			}
 
 			if tt.requirePanic {
 				require.Panics(t, func() {
-					_ = s.Peek()
+					_ = o.Peek()
 				})
 				return
 			}
 
-			require.Equal(t, tt.want, s.Peek())
-			require.False(t, s.Finished())
+			require.Equal(t, tt.want, o.Peek())
+			require.False(t, o.Finished())
 		})
 	}
 }
 
-func Test_singleEventGenerator_Finished(t *testing.T) {
+func Test_OnceGenerator_Finished(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
@@ -213,7 +217,7 @@ func Test_singleEventGenerator_Finished(t *testing.T) {
 		{
 			name: "context is done",
 			fields: fields{
-				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}),
+				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}, []string{"test"}),
 				ctx:   ctx,
 			},
 			want: true,
@@ -221,7 +225,7 @@ func Test_singleEventGenerator_Finished(t *testing.T) {
 		{
 			name: "not finished",
 			fields: fields{
-				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}),
+				event: NewEvent(ctx, timestone.NewMockAction(t), time.Time{}, []string{"test"}),
 				ctx:   context.Background(),
 			},
 			want: false,
@@ -232,12 +236,12 @@ func Test_singleEventGenerator_Finished(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := &singleEventGenerator{
+			o := &OnceGenerator{
 				event: tt.fields.event,
 				ctx:   tt.fields.ctx,
 			}
 
-			require.Equal(t, tt.want, s.Finished())
+			require.Equal(t, tt.want, o.Finished())
 		})
 	}
 }

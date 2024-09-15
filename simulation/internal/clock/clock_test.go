@@ -1,4 +1,4 @@
-package simulation
+package clock
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ func TestNewClock(t *testing.T) {
 
 	now := time.Now()
 
-	clock := newClock(now)
+	clock := NewClock(now)
 
 	require.NotNil(t, clock)
 	require.Equal(t, now, clock.Now())
@@ -23,7 +23,7 @@ func TestClock_Now(t *testing.T) {
 
 	now := time.Now()
 
-	clock := clock{now}
+	clock := Clock{now}
 	require.Equal(t, now, clock.Now())
 }
 
@@ -39,18 +39,18 @@ func Test_clock_Set(t *testing.T) {
 		requirePanic bool
 	}{
 		{
-			name:         "new time in the past",
+			name:         "newMatching time in the past",
 			now:          now,
 			newTime:      now.Add(-time.Second),
 			requirePanic: true,
 		},
 		{
-			name:    "new time equals current time",
+			name:    "newMatching time equals current time",
 			now:     now,
 			newTime: now,
 		},
 		{
-			name:    "new time after curent time",
+			name:    "newMatching time after curent time",
 			now:     now,
 			newTime: now.Add(time.Second),
 		},
@@ -60,18 +60,18 @@ func Test_clock_Set(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &clock{
+			c := &Clock{
 				now: tt.now,
 			}
 
 			if tt.requirePanic {
 				require.Panics(t, func() {
-					c.set(tt.newTime)
+					c.Set(tt.newTime)
 				})
 				return
 			}
 
-			c.set(tt.newTime)
+			c.Set(tt.newTime)
 			require.Equal(t, tt.newTime, c.now)
 		})
 	}

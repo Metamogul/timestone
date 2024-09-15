@@ -21,38 +21,19 @@ const ActionContextClockKey = "timestone.ActionContextClock"
 // An Action is a function to be scheduled by a Scheduler instance.
 // It is identified by a name, e.g. for other Action s to wait for it.
 type Action interface {
-	// Perform executed the action. A clock is passed inside ctx at the
+	// Perform executes the action. A clock is passed inside ctx at the
 	// ActionContextClockKey.
 	Perform(ctx context.Context)
-	// Name identifies the Action, so the scheduler can apply configurations
-	// to it. Name doesn't need to be unique and should be chosen
-	// according to your configuration needs.
-	Name() string
 }
 
 // SimpleAction provides a reference implementation for Action that
 // covers most use cases.
-type SimpleAction struct {
-	action func(context.Context)
-	name   string
-}
-
-// NewSimpleAction creates a new Action that is statically configured to
-// perform action, identifying by name.
-func NewSimpleAction(action func(context.Context), name string) *SimpleAction {
-	return &SimpleAction{action, name}
-}
+type SimpleAction func(context.Context)
 
 // Perform implements Action and performs the action that has been
 // passed when calling NewSimpleAction.
-func (s *SimpleAction) Perform(ctx context.Context) {
-	s.action(ctx)
-}
-
-// Name implements Action and statically returns the name that has
-// been passed when calling NewSimpleAction.
-func (s *SimpleAction) Name() string {
-	return s.name
+func (s SimpleAction) Perform(ctx context.Context) {
+	s(ctx)
 }
 
 // Scheduler encapsulates the scheduling of Action s and should replace
@@ -74,12 +55,12 @@ type Scheduler interface {
 	Clock
 	// PerformNow schedules action to be executed immediately, that is
 	// at the current time of the Scheduler's clock.
-	PerformNow(ctx context.Context, action Action)
+	PerformNow(ctx context.Context, action Action, tags ...string)
 	// PerformAfter schedules an action to be run once after a delay
 	// of duration.
-	PerformAfter(ctx context.Context, action Action, duration time.Duration)
+	PerformAfter(ctx context.Context, action Action, duration time.Duration, tags ...string)
 	// PerformRepeatedly schedules an action to be run every interval
 	// after an initial delay of interval. If until is provided, the last
 	// event will be run before or at until.
-	PerformRepeatedly(ctx context.Context, action Action, until *time.Time, interval time.Duration)
+	PerformRepeatedly(ctx context.Context, action Action, until *time.Time, interval time.Duration, tags ...string)
 }

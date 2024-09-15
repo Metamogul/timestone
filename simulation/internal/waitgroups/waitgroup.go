@@ -1,4 +1,4 @@
-package simulation
+package waitgroups
 
 import "sync"
 

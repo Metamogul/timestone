@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"github.com/metamogul/timestone/internal"
 	"sync"
 	"testing"
 	"time"
@@ -89,7 +90,7 @@ func TestScheduler_PerformRepeatedly_until(t *testing.T) {
 
 	s := &Scheduler{Clock: Clock{}}
 	wg.Add(2)
-	s.PerformRepeatedly(ctx, mockAction, ptr(clock.Now().Add(3*time.Millisecond)), time.Millisecond)
+	s.PerformRepeatedly(ctx, mockAction, internal.Ptr(clock.Now().Add(3*time.Millisecond)), time.Millisecond)
 	wg.Wait()
 }
 
@@ -117,6 +118,6 @@ func TestScheduler_PerformRepeatedly_cancelled(t *testing.T) {
 	clock := Clock{}
 
 	s := &Scheduler{Clock: Clock{}}
-	s.PerformRepeatedly(ctx, timestone.NewMockAction(t), ptr(clock.Now().Add(3*time.Millisecond)), time.Millisecond)
+	s.PerformRepeatedly(ctx, timestone.NewMockAction(t), internal.Ptr(clock.Now().Add(3*time.Millisecond)), time.Millisecond)
 	time.Sleep(2 * time.Millisecond)
 }
