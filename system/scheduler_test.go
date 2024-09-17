@@ -2,12 +2,12 @@ package system
 
 import (
 	"context"
-	"github.com/metamogul/timestone/internal"
+	"github.com/metamogul/timestone/v2/internal"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 )
 
 func TestScheduler_PerformNow(t *testing.T) {

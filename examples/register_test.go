@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
-	"github.com/metamogul/timestone/simulation"
+	"github.com/metamogul/timestone/v2"
+	"github.com/metamogul/timestone/v2/simulation"
 	"github.com/stretchr/testify/require"
 )
 

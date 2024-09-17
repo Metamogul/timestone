@@ -2,8 +2,8 @@ package waitgroups
 
 import (
 	"fmt"
-	"github.com/metamogul/timestone/simulation/config"
-	configinternal "github.com/metamogul/timestone/simulation/internal/config"
+	"github.com/metamogul/timestone/v2/simulation/config"
+	configinternal "github.com/metamogul/timestone/v2/simulation/internal/config"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"

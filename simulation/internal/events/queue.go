@@ -1,8 +1,8 @@
 package events
 
 import (
-	"github.com/metamogul/timestone/simulation/config"
-	"github.com/metamogul/timestone/simulation/internal/waitgroups"
+	"github.com/metamogul/timestone/v2/simulation/config"
+	"github.com/metamogul/timestone/v2/simulation/internal/waitgroups"
 	"slices"
 )
 

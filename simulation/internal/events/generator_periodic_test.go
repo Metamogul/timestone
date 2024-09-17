@@ -2,11 +2,11 @@ package events
 
 import (
 	"context"
-	"github.com/metamogul/timestone/internal"
+	"github.com/metamogul/timestone/v2/internal"
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 	"github.com/stretchr/testify/require"
 )
 

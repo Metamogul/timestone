@@ -2,7 +2,7 @@ package waitgroups
 
 import (
 	"fmt"
-	"github.com/metamogul/timestone/simulation/internal/data"
+	"github.com/metamogul/timestone/v2/simulation/internal/data"
 	"sync"
 )
 

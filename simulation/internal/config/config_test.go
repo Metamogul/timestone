@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/metamogul/timestone/simulation/config"
+	"github.com/metamogul/timestone/v2/simulation/config"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"

@@ -2,13 +2,13 @@ package events
 
 import (
 	"context"
-	"github.com/metamogul/timestone/simulation/config"
-	configinternal "github.com/metamogul/timestone/simulation/internal/config"
-	"github.com/metamogul/timestone/simulation/internal/data"
+	"github.com/metamogul/timestone/v2/simulation/config"
+	configinternal "github.com/metamogul/timestone/v2/simulation/internal/config"
+	"github.com/metamogul/timestone/v2/simulation/internal/data"
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 	"github.com/stretchr/testify/require"
 )
 

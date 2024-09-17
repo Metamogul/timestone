@@ -2,12 +2,12 @@ package events
 
 import (
 	"context"
-	"github.com/metamogul/timestone/simulation/config"
+	"github.com/metamogul/timestone/v2/simulation/config"
 	"slices"
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 	"github.com/stretchr/testify/require"
 )
 

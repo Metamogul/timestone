@@ -2,15 +2,15 @@ package examples
 
 import (
 	"context"
-	"github.com/metamogul/timestone/simulation"
-	"github.com/metamogul/timestone/simulation/config"
+	"github.com/metamogul/timestone/v2/simulation"
+	"github.com/metamogul/timestone/v2/simulation/config"
 	"github.com/stretchr/testify/require"
 	"math/rand/v2"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 )
 
 const simulateProcessorLoadMilliseconds = 100

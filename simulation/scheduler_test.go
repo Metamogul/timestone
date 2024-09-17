@@ -3,16 +3,16 @@ package simulation
 import (
 	"context"
 	"fmt"
-	"github.com/metamogul/timestone/simulation/config"
-	"github.com/metamogul/timestone/simulation/internal/clock"
-	"github.com/metamogul/timestone/simulation/internal/events"
-	"github.com/metamogul/timestone/simulation/internal/waitgroups"
+	"github.com/metamogul/timestone/v2/simulation/config"
+	"github.com/metamogul/timestone/v2/simulation/internal/clock"
+	"github.com/metamogul/timestone/v2/simulation/internal/events"
+	"github.com/metamogul/timestone/v2/simulation/internal/waitgroups"
 	"slices"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )

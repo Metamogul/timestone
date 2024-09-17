@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/metamogul/timestone"
+	"github.com/metamogul/timestone/v2"
 )
 
 const DefaultTag = "<default>"
