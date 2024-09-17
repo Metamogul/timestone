@@ -2,7 +2,7 @@ package events
 
 import (
 	"context"
-	"github.com/metamogul/timestone/simulation/event"
+	"github.com/metamogul/timestone/simulation/config"
 	"slices"
 	"testing"
 	"time"
@@ -126,7 +126,7 @@ func TestQueue_ExpectGenerators(t *testing.T) {
 
 	e := NewQueue(NewConfigs())
 
-	generatorExpectations := []*event.GeneratorExpectation{{Tags: []string{"test"}, Count: 1}}
+	generatorExpectations := []*config.Generator{{Tags: []string{"test"}, Count: 1}}
 
 	e.ExpectGenerators(generatorExpectations)
 	go func() { e.Add(generatorMock) }()
@@ -157,7 +157,7 @@ func TestQueue_WaitForExpectedGenerators(t *testing.T) {
 
 	e := NewQueue(NewConfigs())
 
-	generatorExpectations := []*event.GeneratorExpectation{{Tags: []string{"test"}, Count: 1}}
+	generatorExpectations := []*config.Generator{{Tags: []string{"test"}, Count: 1}}
 
 	e.ExpectGenerators(generatorExpectations)
 	go func() { e.Add(generatorMock) }()

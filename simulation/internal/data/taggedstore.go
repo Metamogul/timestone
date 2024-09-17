@@ -1,4 +1,4 @@
-package tags
+package data
 
 // To support very large sets, there's great potential
 // for optimization here using a prefix tree as an index,

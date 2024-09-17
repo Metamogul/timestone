@@ -3,7 +3,7 @@ package examples
 import (
 	"context"
 	"github.com/metamogul/timestone/simulation"
-	"github.com/metamogul/timestone/simulation/event"
+	"github.com/metamogul/timestone/simulation/config"
 	"github.com/stretchr/testify/require"
 	"math/rand/v2"
 	"sync"
@@ -13,7 +13,7 @@ import (
 	"github.com/metamogul/timestone"
 )
 
-const simulateLoadMilliseconds = 100
+const simulateProcessorLoadMilliseconds = 100
 
 type processingCache struct {
 	content   map[string]string
@@ -61,7 +61,7 @@ func newFooProcessor(cache *processingCache, scheduler timestone.Scheduler) *foo
 
 func (a *fooProcessor) invoke(context.Context) {
 	for key, value := range a.cache.getContent() {
-		time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Int64N(simulateProcessorLoadMilliseconds)) * time.Millisecond)
 		a.cache.set(key, value+"foo")
 	}
 }
@@ -80,13 +80,13 @@ func newBarProcessor(cache *processingCache, scheduler timestone.Scheduler) *bar
 
 func (m *barProcessor) invoke(ctx context.Context) {
 	for key, value := range m.cache.getContent() {
-		time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Int64N(simulateProcessorLoadMilliseconds)) * time.Millisecond)
 		m.cache.set(key, value+"bar")
 
 		m.scheduler.PerformNow(ctx,
 			timestone.SimpleAction(
 				func(context.Context) {
-					time.Sleep(time.Duration(rand.Int64N(simulateLoadMilliseconds)) * time.Millisecond)
+					time.Sleep(time.Duration(rand.Int64N(simulateProcessorLoadMilliseconds)) * time.Millisecond)
 
 					value := m.cache.get(key)
 					m.cache.set(key, value+"baz")
@@ -147,45 +147,34 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo before bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.ConfigureEvent(
-					event.Config{
-						WaitForEvents:  []*event.Key{{Tags: []string{"fooProcessing"}}},
-						AddsGenerators: []*event.GeneratorExpectation{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
-					},
-					nil,
-					"barProcessing",
-				)
+				s.ConfigureEvents(config.Config{
+					Tags:    []string{"barProcessing"},
+					WaitFor: []config.Event{config.All{Tags: []string{"fooProcessing"}}},
+					Adds:    []*config.Generator{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
+				})
 			},
 			result: "foobarbaz",
 		},
 		{
 			name: "foo after bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.ConfigureEvent(
-					event.Config{
-						Priority: 3,
-						WaitForEvents: []*event.Key{
-							{Tags: []string{"barProcessing"}},
-							{Tags: []string{"barPostprocessingBaz"}},
-						},
+				s.ConfigureEvents(config.Config{
+					Tags:     []string{"fooProcessing"},
+					Priority: 3,
+					WaitFor: []config.Event{
+						config.All{Tags: []string{"barProcessing"}},
+						config.All{Tags: []string{"barPostprocessingBaz"}},
 					},
-					nil,
-					"fooProcessing",
-				)
-				s.ConfigureEvent(
-					event.Config{
-						Priority:       1,
-						AddsGenerators: []*event.GeneratorExpectation{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
-					},
-					nil,
-					"barProcessing",
-				)
-				s.ConfigureEvent(
-					event.Config{
-						Priority: 2,
-					},
-					nil,
-					"barPostprocessingBaz")
+				})
+				s.ConfigureEvents(config.Config{
+					Tags:     []string{"barProcessing"},
+					Priority: 1,
+					Adds:     []*config.Generator{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
+				})
+				s.ConfigureEvents(config.Config{
+					Tags:     []string{"barPostprocessingBaz"},
+					Priority: 2,
+				})
 			},
 			result: "barbazfoo",
 		},

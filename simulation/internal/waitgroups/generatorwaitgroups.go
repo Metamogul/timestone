@@ -2,19 +2,19 @@ package waitgroups
 
 import (
 	"fmt"
-	"github.com/metamogul/timestone/simulation/internal/tags"
+	"github.com/metamogul/timestone/simulation/internal/data"
 	"sync"
 )
 
 type GeneratorWaitGroups struct {
-	waitGroups *tags.TaggedStore[*waitGroup]
+	waitGroups *data.TaggedStore[*waitGroup]
 
 	mu sync.RWMutex
 }
 
 func NewGeneratorWaitGroups() *GeneratorWaitGroups {
 	return &GeneratorWaitGroups{
-		waitGroups: tags.NewTaggedStore[*waitGroup](),
+		waitGroups: data.NewTaggedStore[*waitGroup](),
 	}
 }
 

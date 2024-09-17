@@ -3,7 +3,7 @@ package simulation
 import (
 	"context"
 	"fmt"
-	"github.com/metamogul/timestone/simulation/event"
+	"github.com/metamogul/timestone/simulation/config"
 	"github.com/metamogul/timestone/simulation/internal/clock"
 	"github.com/metamogul/timestone/simulation/internal/events"
 	"github.com/metamogul/timestone/simulation/internal/waitgroups"
@@ -49,7 +49,7 @@ func TestScheduler_ConfigureEvent(t *testing.T) {
 
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	NewScheduler(now).ConfigureEvent(event.Config{}, nil, "test")
+	NewScheduler(now).ConfigureEvents(config.Config{Tags: []string{"test"}})
 }
 
 func TestScheduler_ForwardOne(t *testing.T) {
@@ -89,13 +89,13 @@ func TestScheduler_ForwardOne(t *testing.T) {
 	s.PerformAfter(context.Background(), longRunningAction2, 2*time.Second, "longRunningAction2")
 
 	s.ForwardOne()
-	s.WaitFor(&event.Key{Tags: []string{"longRunningAction1"}})
+	s.WaitFor(config.All{Tags: []string{"longRunningAction1"}})
 	require.Len(t, eventTimes, 1)
 	require.Equal(t, now.Add(1*time.Second), eventTimes[0])
 	require.Equal(t, now.Add(1*time.Second), s.clock.Now())
 
 	s.ForwardOne()
-	s.WaitFor(&event.Key{Tags: []string{"longRunningAction2"}})
+	s.WaitFor(config.All{Tags: []string{"longRunningAction2"}})
 	require.Len(t, eventTimes, 2)
 	require.Equal(t, now.Add(2*time.Second), eventTimes[1])
 	require.Equal(t, now.Add(2*time.Second), s.clock.Now())
@@ -140,18 +140,19 @@ func TestScheduler_ForwardOne_Recursive(t *testing.T) {
 		Once()
 
 	s.PerformAfter(context.Background(), outerAction, 1*time.Second, "outerAction")
-	s.ConfigureEvent(event.Config{
-		AddsGenerators: []*event.GeneratorExpectation{{Tags: []string{"innerAction"}, Count: 1}},
-	}, nil, "outerAction")
+	s.ConfigureEvents(config.Config{
+		Tags: []string{"outerAction"},
+		Adds: []*config.Generator{{Tags: []string{"innerAction"}, Count: 1}},
+	})
 
 	s.ForwardOne()
-	s.WaitFor(&event.Key{Tags: []string{"outerAction"}})
+	s.WaitFor(config.All{Tags: []string{"outerAction"}})
 	require.Len(t, eventTimes, 1)
 	require.Equal(t, now.Add(1*time.Second), eventTimes[0])
 	require.Equal(t, now.Add(1*time.Second), s.clock.Now())
 
 	s.ForwardOne()
-	s.WaitFor(&event.Key{Tags: []string{"innerAction"}})
+	s.WaitFor(config.All{Tags: []string{"innerAction"}})
 	require.Len(t, eventTimes, 2)
 	require.Equal(t, now.Add(2*time.Second), eventTimes[1])
 	require.Equal(t, now.Add(2*time.Second), s.clock.Now())
@@ -171,7 +172,7 @@ func TestScheduler_WaitFor(t *testing.T) {
 		wg2.Done()
 	}()
 
-	s.eventWaitGroups.WaitFor([]*event.Key{{Tags: []string{"group"}}})
+	s.eventWaitGroups.WaitFor([]config.Event{config.All{Tags: []string{"group"}}})
 }
 
 func TestScheduler_Wait(t *testing.T) {
@@ -221,7 +222,10 @@ func TestScheduler_Forward(t *testing.T) {
 			fooActionScheduleAfter: 1 * time.Millisecond,
 			barActionScheduleAfter: 2 * time.Millisecond,
 			configureScheduler: func(s *Scheduler) {
-				s.ConfigureEvent(event.Config{WaitForEvents: []*event.Key{{Tags: []string{"fooAction"}}}}, nil, "barAction")
+				s.ConfigureEvents(config.Config{
+					Tags:    []string{"barAction"},
+					WaitFor: []config.Event{config.All{Tags: []string{"fooAction"}}},
+				})
 			},
 			wantResult: "foobar",
 			wantTimes: []time.Time{
@@ -310,10 +314,10 @@ func TestScheduler_Forward_Recursive(t *testing.T) {
 		}).
 		Once()
 
-	s.ConfigureEvent(
-		event.Config{AddsGenerators: []*event.GeneratorExpectation{{[]string{"innerAction"}, 1}}},
-		nil,
-		"outerAction")
+	s.ConfigureEvents(config.Config{
+		Tags: []string{"outerAction"},
+		Adds: []*config.Generator{{[]string{"innerAction"}, 1}},
+	})
 
 	s.PerformAfter(context.Background(), outerAction, time.Second, "outerAction")
 
@@ -411,14 +415,15 @@ func TestScheduler_execEvent(t *testing.T) {
 			Once()
 
 		eventToExec := events.NewEvent(context.Background(), mockAction, now.Add(time.Minute), []string{"test"})
-		eventConfig := event.Config{
-			AddsGenerators: []*event.GeneratorExpectation{{[]string{"scheduledByTest"}, 1}},
+		eventConfig := config.Config{
+			Tags: []string{"test"},
+			Adds: []*config.Generator{{[]string{"scheduledByTest"}, 1}},
 		}
 
-		s.eventConfigs.Set(eventConfig, nil, "test")
+		s.eventConfigs.Set(eventConfig)
 
 		s.execEvent(eventToExec)
-		s.WaitFor(&event.Key{Tags: []string{"test"}})
+		s.WaitFor(config.All{Tags: []string{"test"}})
 
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
 	})
@@ -436,7 +441,7 @@ func TestScheduler_execEvent(t *testing.T) {
 		s := NewScheduler(now)
 
 		s.execEvent(eventToExec)
-		s.WaitFor(&event.Key{Tags: []string{"test"}})
+		s.WaitFor(config.All{Tags: []string{"test"}})
 
 		require.Equal(t, now.Add(time.Minute), s.clock.Now())
 	})

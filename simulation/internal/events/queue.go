@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/metamogul/timestone/simulation/event"
+	"github.com/metamogul/timestone/simulation/config"
 	"github.com/metamogul/timestone/simulation/internal/waitgroups"
 	"slices"
 )
@@ -39,13 +39,13 @@ func (q *Queue) Add(generator Generator) {
 	q.sortActiveGenerators()
 }
 
-func (q *Queue) ExpectGenerators(expectedGenerators []*event.GeneratorExpectation) {
+func (q *Queue) ExpectGenerators(expectedGenerators []*config.Generator) {
 	for _, expectation := range expectedGenerators {
 		q.NewGeneratorsWaitGroups.Add(expectation.Count, expectation.Tags)
 	}
 }
 
-func (q *Queue) WaitForExpectedGenerators(expectedGenerators []*event.GeneratorExpectation) {
+func (q *Queue) WaitForExpectedGenerators(expectedGenerators []*config.Generator) {
 	for _, expectedGenerator := range expectedGenerators {
 		q.NewGeneratorsWaitGroups.WaitFor(expectedGenerator.Tags)
 	}

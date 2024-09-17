@@ -1,4 +1,4 @@
-package tags
+package data
 
 // bitmap implements a bit map.
 // IMPORTANT: Note that this implementation assumes that

@@ -2,8 +2,8 @@ package waitgroups
 
 import (
 	"fmt"
-	"github.com/metamogul/timestone/internal"
-	"github.com/metamogul/timestone/simulation/event"
+	"github.com/metamogul/timestone/simulation/config"
+	configinternal "github.com/metamogul/timestone/simulation/internal/config"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
@@ -76,53 +76,83 @@ func TestEventWaitGroups_WaitFor(t *testing.T) {
 		wg.Done()
 	}()
 
-	e.WaitFor([]*event.Key{
-		{
-			Tags: presentTags,
-			Time: internal.Ptr(presentTime.Add(time.Second)),
+	e.WaitFor(
+		[]config.Event{
+			config.At{
+				Time: presentTime.Add(time.Second),
+				Tags: presentTags,
+			},
+			config.At{
+				Time: presentTime,
+				Tags: presentTags,
+			},
 		},
-		{
-			Tags: presentTags,
-			Time: &presentTime,
-		},
-	})
+	)
 
 }
 
 func TestEventWaitGroups_waitFor(t *testing.T) {
 	t.Parallel()
 
-	presentTags := []string{"test", "testGroup", "foo"}
-	presentTime := time.Time{}
-
 	testcases := []struct {
 		name            string
-		waitForEventKey *event.Key
+		presentTags     []string
+		presentTime     time.Time
+		waitForEventKey config.Event
 		wantSuccess     bool
 	}{
 		{
-			name:            "time wanted, no result for tags",
-			waitForEventKey: &event.Key{Tags: []string{"baz"}, Time: &time.Time{}},
-			wantSuccess:     false,
-		},
-		{
-			name:            "not time wanted, no result for tags",
-			waitForEventKey: &event.Key{Tags: []string{"baz"}, Time: &time.Time{}},
-			wantSuccess:     false,
-		},
-		{
-			name:            "time wanted, but not present",
-			waitForEventKey: &event.Key{Tags: []string{"test"}, Time: internal.Ptr(time.Now())},
-			wantSuccess:     false,
-		},
-		{
-			name:            "time wanted, is present",
-			waitForEventKey: &event.Key{Tags: []string{"test"}, Time: &time.Time{}},
+			name:            "match relative time, no result for tags",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: configinternal.At{Time: time.Time{}, Tags: []string{"baz"}},
 			wantSuccess:     true,
 		},
 		{
-			name:            "no time wanted",
-			waitForEventKey: &event.Key{Tags: []string{"test"}},
+			name:            "match time, no result for tags",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: config.At{Time: time.Time{}, Tags: []string{"baz"}},
+			wantSuccess:     false,
+		},
+		{
+			name:            "match all times, no result for tags",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: config.All{Tags: []string{"baz"}},
+			wantSuccess:     false,
+		},
+		{
+			name:            "match relative time, has no match",
+			waitForEventKey: configinternal.At{Time: time.Time{}.Add(-1), Tags: []string{"test"}},
+			wantSuccess:     true,
+		},
+		{
+			name:            "match relative time, has match",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: configinternal.At{Time: time.Time{}, Tags: []string{"test"}},
+			wantSuccess:     true,
+		},
+		{
+			name:            "match time, has no match",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: config.At{Time: time.Now(), Tags: []string{"test"}},
+			wantSuccess:     false,
+		},
+		{
+			name:            "match time, has match",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: config.At{Time: time.Time{}, Tags: []string{"test"}},
+			wantSuccess:     true,
+		},
+		{
+			name:            "match all",
+			presentTags:     []string{"test", "testGroup", "foo"},
+			presentTime:     time.Time{},
+			waitForEventKey: config.All{Tags: []string{"test"}},
 			wantSuccess:     true,
 		},
 	}
@@ -133,8 +163,10 @@ func TestEventWaitGroups_waitFor(t *testing.T) {
 
 			e := NewEventWaitGroups()
 
-			wg := e.New(presentTime, presentTags)
-			go func() { wg.Done() }()
+			if tt.presentTags != nil {
+				wg := e.New(tt.presentTime, tt.presentTags)
+				go func() { wg.Done() }()
+			}
 
 			e.mu.RLock()
 			success := e.waitFor(tt.waitForEventKey)

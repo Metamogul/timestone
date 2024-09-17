@@ -46,7 +46,7 @@ func (s SimpleAction) Perform(ctx context.Context) {
 //
 // The simulation.Scheduler implementation uses a configurable run loop
 // instead. It is intended for use in unit tests, where you can use the
-// simulation.Scheduler.ConfigureEvent method to provide various options
+// simulation.Scheduler.ConfigureEvents method to provide various options
 // that help the Scheduler to establish a deterministic and repeatable
 // execution order of actions.
 type Scheduler interface {

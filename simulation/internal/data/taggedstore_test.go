@@ -1,4 +1,4 @@
-package tags
+package data
 
 import (
 	"github.com/stretchr/testify/require"

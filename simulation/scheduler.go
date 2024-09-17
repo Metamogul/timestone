@@ -2,7 +2,7 @@ package simulation
 
 import (
 	"context"
-	"github.com/metamogul/timestone/simulation/event"
+	"github.com/metamogul/timestone/simulation/config"
 
 	"github.com/metamogul/timestone/simulation/internal/clock"
 	"github.com/metamogul/timestone/simulation/internal/events"
@@ -41,11 +41,11 @@ func (s *Scheduler) Now() time.Time {
 	return s.clock.Now()
 }
 
-// ConfigureEvent provides an Config for either a single event,
-// identified by the name of its embedded action and the time of its occurrence,
-// or for every event matching the actionName if no time is provided.
-func (s *Scheduler) ConfigureEvent(config event.Config, time *time.Time, tags ...string) {
-	s.eventConfigs.Set(config, time, tags...)
+// ConfigureEvents provides an config.Config to configure one ore multiple events.
+func (s *Scheduler) ConfigureEvents(configs ...config.Config) {
+	for _, configuration := range configs {
+		s.eventConfigs.Set(configuration)
+	}
 }
 
 // ForwardOne executes just the next event that is scheduled on the
@@ -67,7 +67,7 @@ func (s *Scheduler) ForwardOne() {
 
 // WaitFor is to be used after ForwardOne and blocks until all scheduled
 // events embedding actions with the specified actionNames have finished.
-func (s *Scheduler) WaitFor(events ...*event.Key) {
+func (s *Scheduler) WaitFor(events ...config.Event) {
 	s.eventWaitGroups.WaitFor(events)
 }
 
@@ -88,12 +88,12 @@ func (s *Scheduler) Wait() {
 //
 // Event s will be materialized and executed from the schedulers event queue in
 // temporal order. In case of simultaneousness, the exection order can be changed
-// with the Config.Priority passed through ConfigureEvent.
+// with the Config.Priority passed through ConfigureEvents.
 //
-// Event s configured via their Config.WaitForEvents will only start
+// Event s configured via their Config.WaitFor will only start
 // execution once the specified events have finished.
 //
-// Event s configured via Config.AddsGenerators will block the run
+// Event s configured via Config.Adds will block the run
 // loop until the specified Generator instances have been passed to the
 // Scheduler, either via one of the Perform... methods or via AddEventGenerators.
 func (s *Scheduler) Forward(interval time.Duration) {
@@ -128,18 +128,18 @@ func (s *Scheduler) execNextEvent(targetTime time.Time) (shouldContinue bool) {
 	return true
 }
 
-func (s *Scheduler) execEvent(event *events.Event) {
-	s.clock.Set(event.Time)
+func (s *Scheduler) execEvent(eventToExec *events.Event) {
+	s.clock.Set(eventToExec.Time)
 
-	blockingEvents := s.eventConfigs.BlockingEvents(event)
-	expectedGenerators := s.eventConfigs.ExpectedGenerators(event)
+	blockingEvents := s.eventConfigs.BlockingEvents(eventToExec)
+	expectedGenerators := s.eventConfigs.ExpectedGenerators(eventToExec)
 
 	s.eventQueue.ExpectGenerators(expectedGenerators)
 
-	eventWaitGroup := s.eventWaitGroups.New(event.Time, event.Tags())
+	eventWaitGroup := s.eventWaitGroups.New(eventToExec.Time, eventToExec.Tags())
 	go func() {
 		s.eventWaitGroups.WaitFor(blockingEvents)
-		event.Perform(context.WithValue(event.Context, timestone.ActionContextClockKey, clock.NewClock(event.Time)))
+		eventToExec.Perform(context.WithValue(eventToExec.Context, timestone.ActionContextClockKey, clock.NewClock(eventToExec.Time)))
 		eventWaitGroup.Done()
 	}()
 

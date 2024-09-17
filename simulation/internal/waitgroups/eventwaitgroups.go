@@ -2,21 +2,22 @@ package waitgroups
 
 import (
 	"fmt"
-	"github.com/metamogul/timestone/simulation/event"
-	"github.com/metamogul/timestone/simulation/internal/tags"
+	"github.com/metamogul/timestone/simulation/config"
+	configinternal "github.com/metamogul/timestone/simulation/internal/config"
+	"github.com/metamogul/timestone/simulation/internal/data"
 	"sync"
 	"time"
 )
 
 type EventWaitGroups struct {
-	waitGroups *tags.TaggedStore[map[int64]*sync.WaitGroup]
+	waitGroups *data.TaggedStore[map[int64]*sync.WaitGroup]
 
 	mu sync.RWMutex
 }
 
 func NewEventWaitGroups() *EventWaitGroups {
 	return &EventWaitGroups{
-		waitGroups: tags.NewTaggedStore[map[int64]*sync.WaitGroup](),
+		waitGroups: data.NewTaggedStore[map[int64]*sync.WaitGroup](),
 	}
 }
 
@@ -24,17 +25,17 @@ func (e *EventWaitGroups) New(time time.Time, tags []string) *sync.WaitGroup {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	setForTags := e.waitGroups.Matching(tags)
-	if setForTags == nil {
-		setForTags = make(map[int64]*sync.WaitGroup)
-		e.waitGroups.Set(setForTags, tags)
+	waitGroupsForTags := e.waitGroups.Matching(tags)
+	if waitGroupsForTags == nil {
+		waitGroupsForTags = make(map[int64]*sync.WaitGroup)
+		e.waitGroups.Set(waitGroupsForTags, tags)
 	}
 
 	timeUnixMilli := time.UnixMilli()
-	waitGroupForTagsAndTime, exists := setForTags[timeUnixMilli]
+	waitGroupForTagsAndTime, exists := waitGroupsForTags[timeUnixMilli]
 	if !exists {
 		waitGroupForTagsAndTime = new(sync.WaitGroup)
-		setForTags[timeUnixMilli] = waitGroupForTagsAndTime
+		waitGroupsForTags[timeUnixMilli] = waitGroupForTagsAndTime
 	}
 
 	waitGroupForTagsAndTime.Add(1)
@@ -42,7 +43,7 @@ func (e *EventWaitGroups) New(time time.Time, tags []string) *sync.WaitGroup {
 	return waitGroupForTagsAndTime
 }
 
-func (e *EventWaitGroups) WaitFor(events []*event.Key) {
+func (e *EventWaitGroups) WaitFor(events []config.Event) {
 	// To understand why this implementation has been chosen,
 	// consider an action with tag "action2" adding more actions tagged
 	// "action2.1", with an "action1" previously called that has been
@@ -55,7 +56,7 @@ func (e *EventWaitGroups) WaitFor(events []*event.Key) {
 	// the missing GeneratorWaitGroups and avoid a panic.
 
 	for len(events) > 0 {
-		var remainingEvents []*event.Key
+		var remainingEvents []config.Event
 
 		e.mu.RLock()
 		for _, eventKey := range events {
@@ -67,28 +68,39 @@ func (e *EventWaitGroups) WaitFor(events []*event.Key) {
 		e.mu.RUnlock()
 
 		if len(remainingEvents) == len(events) {
-			var remainingEventsValues []event.Key
-			for _, eventKey := range remainingEvents {
-				remainingEventsValues = append(remainingEventsValues, *eventKey)
-			}
-			panic(fmt.Sprintf("Wait group(s) for %v do not exist", remainingEventsValues))
+			panic(fmt.Sprintf("Wait group(s) for %v do not exist", events))
 		}
 
 		events = remainingEvents
 	}
 }
 
-func (e *EventWaitGroups) waitFor(event *event.Key) (success bool) {
-	waitGroupSetsForTagsByTime := e.waitGroups.Containing(event.Tags)
+func (e *EventWaitGroups) waitFor(event config.Event) (success bool) {
+	waitGroupSetsForTagsByTime := e.waitGroups.Containing(event.GetTags())
 	if len(waitGroupSetsForTagsByTime) == 0 {
-		return false
+		_, ignoreMissmatch := event.(configinternal.At)
+		return ignoreMissmatch
 	}
 
-	if event.Time != nil {
-		// Wait for events at time
-		timeUnixMilli := event.Time.UnixMilli()
+	switch event := event.(type) {
+
+	case configinternal.At:
+		// Wait for events at time, ignore missing match
 		for _, waitGroupsForTagsByTime := range waitGroupSetsForTagsByTime {
-			wg, exists := waitGroupsForTagsByTime[timeUnixMilli]
+			wg, exists := waitGroupsForTagsByTime[event.Time.UnixMilli()]
+			if !exists {
+				return true
+			}
+
+			e.mu.RUnlock() // Unlock before waiting to avoid deadlocks
+			wg.Wait()
+			e.mu.RLock() // Reacquire the lock after waiting
+		}
+
+	case config.At:
+		// Wait for events at time, don't ignore missing match
+		for _, waitGroupsForTagsByTime := range waitGroupSetsForTagsByTime {
+			wg, exists := waitGroupsForTagsByTime[event.Time.UnixMilli()]
 			if !exists {
 				return false
 			}
@@ -97,7 +109,8 @@ func (e *EventWaitGroups) waitFor(event *event.Key) (success bool) {
 			wg.Wait()
 			e.mu.RLock() // Reacquire the lock after waiting
 		}
-	} else {
+
+	case config.All:
 		// Wait for all events containing tags
 		for _, waitGroupsForTagsByTime := range waitGroupSetsForTagsByTime {
 			e.mu.RUnlock() // Unlock before waiting to avoid deadlocks

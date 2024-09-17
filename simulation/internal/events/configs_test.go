@@ -2,8 +2,9 @@ package events
 
 import (
 	"context"
-	"github.com/metamogul/timestone/simulation/event"
-	"github.com/metamogul/timestone/simulation/internal/tags"
+	"github.com/metamogul/timestone/simulation/config"
+	configinternal "github.com/metamogul/timestone/simulation/internal/config"
+	"github.com/metamogul/timestone/simulation/internal/data"
 	"testing"
 	"time"
 
@@ -29,52 +30,46 @@ func Test_Configs_Add(t *testing.T) {
 	e := NewConfigs()
 
 	require.Panics(t, func() {
-		e.Set(event.Config{}, nil)
+		e.Set(config.Config{})
 	})
 
-	e.Set(event.Config{}, nil, "test1", "test2")
+	e.Set(config.Config{Tags: []string{"test1", "test2"}})
 	require.Len(t, e.configsByTags.All(), 1)
 	require.Len(t, e.configsByTagsAndTime, 0)
 
-	e.Set(event.Config{}, nil, "test1", "test2")
+	e.Set(config.Config{Tags: []string{"test1", "test2"}})
 	require.Len(t, e.configsByTags.All(), 1)
 	require.Len(t, e.configsByTagsAndTime, 0)
 
-	e.Set(event.Config{}, &time.Time{}, "test1", "test2")
-	require.Len(t, e.configsByTags.All(), 1)
-	require.Len(t, e.configsByTagsAndTime, 1)
-	require.Len(t, e.configsByTagsAndTime[time.Time{}.UnixMilli()].All(), 1)
+	now := time.Now()
 
-	e.Set(event.Config{}, &time.Time{}, "test1", "test2")
+	e.Set(config.Config{Time: now, Tags: []string{"test1", "test2"}})
 	require.Len(t, e.configsByTags.All(), 1)
 	require.Len(t, e.configsByTagsAndTime, 1)
-	require.Len(t, e.configsByTagsAndTime[time.Time{}.UnixMilli()].All(), 1)
+	require.Len(t, e.configsByTagsAndTime[now.UnixMilli()].All(), 1)
+
+	e.Set(config.Config{Time: now, Tags: []string{"test1", "test2"}})
+	require.Len(t, e.configsByTags.All(), 1)
+	require.Len(t, e.configsByTagsAndTime, 1)
+	require.Len(t, e.configsByTagsAndTime[now.UnixMilli()].All(), 1)
 }
 
 func Test_Configs_Priority(t *testing.T) {
 	t.Parallel()
 
-	type insertConfigArgs struct {
-		config event.Config
-		time   *time.Time
-		tags   []string
-	}
-
 	testcases := []struct {
 		name          string
-		insertConfigs []insertConfigArgs
+		insertConfigs []config.Config
 		wantPriority  int
 	}{
 		{
-			name: "valid config",
-			insertConfigs: []insertConfigArgs{
-				{config: event.Config{Priority: 1}, time: nil, tags: []string{"test1", "test2"}},
-			},
-			wantPriority: 1,
+			name:          "valid config",
+			insertConfigs: []config.Config{{Tags: []string{"test1", "test2"}, Priority: 1}},
+			wantPriority:  1,
 		},
 		{
 			name:          "no config for event",
-			insertConfigs: []insertConfigArgs{},
+			insertConfigs: []config.Config{},
 			wantPriority:  EventPriorityDefault,
 		},
 	}
@@ -84,8 +79,8 @@ func Test_Configs_Priority(t *testing.T) {
 			t.Parallel()
 
 			e := NewConfigs()
-			for _, configArgs := range tt.insertConfigs {
-				e.Set(configArgs.config, configArgs.time, configArgs.tags...)
+			for _, configToInsert := range tt.insertConfigs {
+				e.Set(configToInsert)
 			}
 
 			mockEvent := NewEvent(
@@ -104,31 +99,34 @@ func Test_Configs_Priority(t *testing.T) {
 func Test_Configs_BlockingEvents(t *testing.T) {
 	t.Parallel()
 
-	type insertConfigArgs struct {
-		config event.Config
-		time   *time.Time
-		tags   []string
-	}
-
 	testcases := []struct {
 		name               string
-		insertConfigs      []insertConfigArgs
-		wantBlockingEvents []*event.Key
+		insertConfigs      []config.Config
+		wantBlockingEvents []config.Event
 	}{
 		{
-			name: "valid config",
-			insertConfigs: []insertConfigArgs{
+			name: "transformed event keys",
+			insertConfigs: []config.Config{
 				{
-					config: event.Config{WaitForEvents: []*event.Key{{Tags: []string{"test1", "test2"}}}},
-					time:   nil,
-					tags:   []string{"test1", "test2"},
+					Tags:    []string{"test1", "test2"},
+					WaitFor: []config.Event{config.Before{Interval: -1, Tags: []string{"test1", "test2"}}},
 				},
 			},
-			wantBlockingEvents: []*event.Key{{Tags: []string{"test1", "test2"}}},
+			wantBlockingEvents: []config.Event{configinternal.At{Time: time.Time{}.Add(-1), Tags: []string{"test1", "test2"}}},
+		},
+		{
+			name: "valid config",
+			insertConfigs: []config.Config{
+				{
+					Tags:    []string{"test1", "test2"},
+					WaitFor: []config.Event{config.All{Tags: []string{"test1", "test2"}}},
+				},
+			},
+			wantBlockingEvents: []config.Event{config.All{Tags: []string{"test1", "test2"}}},
 		},
 		{
 			name:               "no config for event",
-			insertConfigs:      []insertConfigArgs{},
+			insertConfigs:      []config.Config{},
 			wantBlockingEvents: nil,
 		},
 	}
@@ -138,8 +136,8 @@ func Test_Configs_BlockingEvents(t *testing.T) {
 			t.Parallel()
 
 			e := NewConfigs()
-			for _, configArgs := range tt.insertConfigs {
-				e.Set(configArgs.config, configArgs.time, configArgs.tags...)
+			for _, configToInsert := range tt.insertConfigs {
+				e.Set(configToInsert)
 			}
 
 			mockEvent := NewEvent(
@@ -157,34 +155,24 @@ func Test_Configs_BlockingEvents(t *testing.T) {
 
 func Test_Configs_ExpectedGenerators(t *testing.T) {
 	t.Parallel()
-
-	type insertConfigArgs struct {
-		config event.Config
-		time   *time.Time
-		tags   []string
-	}
-
 	testcases := []struct {
 		name                   string
-		insertConfigs          []insertConfigArgs
-		wantExpectedGenerators []*event.GeneratorExpectation
+		insertConfigs          []config.Config
+		wantExpectedGenerators []*config.Generator
 	}{
 		{
 			name: "valid config",
-			insertConfigs: []insertConfigArgs{
+			insertConfigs: []config.Config{
 				{
-					config: event.Config{
-						AddsGenerators: []*event.GeneratorExpectation{{[]string{"testWanted"}, 1}},
-					},
-					time: nil,
-					tags: []string{"test1", "test2"},
+					Tags: []string{"test1", "test2"},
+					Adds: []*config.Generator{{[]string{"testWanted"}, 1}},
 				},
 			},
-			wantExpectedGenerators: []*event.GeneratorExpectation{{[]string{"testWanted"}, 1}},
+			wantExpectedGenerators: []*config.Generator{{[]string{"testWanted"}, 1}},
 		},
 		{
 			name:                   "no config for event",
-			insertConfigs:          []insertConfigArgs{},
+			insertConfigs:          []config.Config{},
 			wantExpectedGenerators: nil,
 		},
 	}
@@ -194,8 +182,8 @@ func Test_Configs_ExpectedGenerators(t *testing.T) {
 			t.Parallel()
 
 			e := NewConfigs()
-			for _, configArgs := range tt.insertConfigs {
-				e.Set(configArgs.config, configArgs.time, configArgs.tags...)
+			for _, configToInsert := range tt.insertConfigs {
+				e.Set(configToInsert)
 			}
 
 			mockEvent := NewEvent(
@@ -216,17 +204,17 @@ func Test_Configs_configsByTagsForTime(t *testing.T) {
 
 	testcases := []struct {
 		name                 string
-		configsByTagsAndTime map[int64]*tags.TaggedStore[*event.Config]
+		configsByTagsAndTime map[int64]*data.TaggedStore[*config.Config]
 	}{
 		{
 			name: "entry exists",
-			configsByTagsAndTime: map[int64]*tags.TaggedStore[*event.Config]{
-				0: tags.NewTaggedStore[*event.Config](),
+			configsByTagsAndTime: map[int64]*data.TaggedStore[*config.Config]{
+				0: data.NewTaggedStore[*config.Config](),
 			},
 		},
 		{
 			name:                 "entry does not exist",
-			configsByTagsAndTime: make(map[int64]*tags.TaggedStore[*event.Config]),
+			configsByTagsAndTime: make(map[int64]*data.TaggedStore[*config.Config]),
 		},
 	}
 
@@ -238,7 +226,7 @@ func Test_Configs_configsByTagsForTime(t *testing.T) {
 			e.configsByTagsAndTime = tt.configsByTagsAndTime
 
 			result := e.configsByTagsForTime(time.Time{})
-			require.Equal(t, tags.NewTaggedStore[*event.Config](), result)
+			require.Equal(t, data.NewTaggedStore[*config.Config](), result)
 		})
 	}
 }
@@ -246,47 +234,36 @@ func Test_Configs_configsByTagsForTime(t *testing.T) {
 func Test_Configs_get(t *testing.T) {
 	t.Parallel()
 
-	type insertConfigArgs struct {
-		config event.Config
-		time   *time.Time
-		tags   []string
-	}
-
 	testcases := []struct {
 		name              string
-		insertConfigs     []insertConfigArgs
-		nameCallCount     int
-		wantConfiguration *event.Config
+		insertConfigs     []config.Config
+		wantConfiguration *config.Config
 	}{
 		{
 			name: "both configs exist",
-			insertConfigs: []insertConfigArgs{
-				{config: event.Config{Priority: 20}, time: &time.Time{}, tags: []string{"test1", "test2"}},
-				{config: event.Config{Priority: 10}, time: nil, tags: []string{"test1", "test2"}},
+			insertConfigs: []config.Config{
+				{Tags: []string{"test1", "test2"}, Time: time.Time{}.Add(1), Priority: 20},
+				{Tags: []string{"test1", "test2"}, Priority: 10},
 			},
-			nameCallCount:     1,
-			wantConfiguration: &event.Config{Priority: 20},
+			wantConfiguration: &config.Config{Tags: []string{"test1", "test2"}, Time: time.Time{}.Add(1), Priority: 20},
 		},
 		{
 			name: "config for name exists",
-			insertConfigs: []insertConfigArgs{
-				{config: event.Config{Priority: 10}, time: nil, tags: []string{"test1", "test2"}},
+			insertConfigs: []config.Config{
+				{Tags: []string{"test1", "test2"}, Priority: 10},
 			},
-			nameCallCount:     2,
-			wantConfiguration: &event.Config{Priority: 10},
+			wantConfiguration: &config.Config{Tags: []string{"test1", "test2"}, Priority: 10},
 		},
 		{
 			name: "config for name + time exists",
-			insertConfigs: []insertConfigArgs{
-				{config: event.Config{Priority: 20}, time: &time.Time{}, tags: []string{"test1", "test2"}},
+			insertConfigs: []config.Config{
+				{Tags: []string{"test1", "test2"}, Time: time.Time{}.Add(1), Priority: 20},
 			},
-			nameCallCount:     1,
-			wantConfiguration: &event.Config{Priority: 20},
+			wantConfiguration: &config.Config{Tags: []string{"test1", "test2"}, Time: time.Time{}.Add(1), Priority: 20},
 		},
 		{
 			name:              "no config exists",
-			insertConfigs:     []insertConfigArgs{},
-			nameCallCount:     2,
+			insertConfigs:     []config.Config{},
 			wantConfiguration: nil,
 		},
 	}
@@ -296,8 +273,8 @@ func Test_Configs_get(t *testing.T) {
 			t.Parallel()
 
 			e := NewConfigs()
-			for _, configArgs := range tt.insertConfigs {
-				e.Set(configArgs.config, configArgs.time, configArgs.tags...)
+			for _, configToInsert := range tt.insertConfigs {
+				e.Set(configToInsert)
 			}
 
 			mockEvent := NewEvent(
@@ -307,8 +284,8 @@ func Test_Configs_get(t *testing.T) {
 				[]string{"test1", "test2"},
 			)
 
-			config := e.get(mockEvent)
-			require.Equal(t, tt.wantConfiguration, config)
+			gotConfig := e.get(mockEvent)
+			require.Equal(t, tt.wantConfiguration, gotConfig)
 		})
 	}
 }
