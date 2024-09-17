@@ -122,18 +122,18 @@ In this case the `simulation.Scheduler`'s run loop needs to wait for the generat
 `secondAction` to be added – otherwise the run loop might terminate in the next iteration, not knowing yet that a new 
 generator will provide another event shortly.
 
-To avoid this race condition, you add a new `simulation.EventConfiguration` for the `firstAction` that looks probably 
+To avoid this race condition, you add a new `config.Config` targeting the `firstAction` that looks probably 
 like:
 
 ```golang
-s.ConfigureEvent(
-    event.Config{
-        AddsGenerators: []*event.GeneratorExpectation{
-            Tags: []string{"secondAction"}, Count: 1},
+scheduler.ConfigureEvents(
+    config.Config{
+        Tags: []string{"firstAction"},
+        Adds: []*config.Generator{
+            Tags: []string{"secondAction"},
+            Count: 1,
         },
-        }, 
-    nil, 
-    "firstAction", 
+    },
 )
 ```
 
