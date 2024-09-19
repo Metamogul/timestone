@@ -3,7 +3,7 @@ package examples
 import (
 	"context"
 	"github.com/metamogul/timestone/v2/simulation"
-	"github.com/metamogul/timestone/v2/simulation/config"
+	c "github.com/metamogul/timestone/v2/simulation/config"
 	"github.com/stretchr/testify/require"
 	"math/rand/v2"
 	"sync"
@@ -147,10 +147,14 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo before bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.ConfigureEvents(config.Config{
-					Tags:    []string{"barProcessing"},
-					WaitFor: []config.Event{config.All{Tags: []string{"fooProcessing"}}},
-					Adds:    []*config.Generator{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
+				s.ConfigureEvents(c.Config{
+					Tags: []string{"barProcessing"},
+					WaitFor: []c.Event{
+						c.All{Tags: []string{"fooProcessing"}},
+					},
+					Adds: []*c.Generator{
+						{Tags: []string{"barPostprocessingBaz"}, Count: 5},
+					},
 				})
 			},
 			result: "foobarbaz",
@@ -158,20 +162,22 @@ func TestApp(t *testing.T) {
 		{
 			name: "foo after bar",
 			configureScheduler: func(s *simulation.Scheduler) {
-				s.ConfigureEvents(config.Config{
+				s.ConfigureEvents(c.Config{
 					Tags:     []string{"fooProcessing"},
 					Priority: 3,
-					WaitFor: []config.Event{
-						config.All{Tags: []string{"barProcessing"}},
-						config.All{Tags: []string{"barPostprocessingBaz"}},
+					WaitFor: []c.Event{
+						c.All{Tags: []string{"barProcessing"}},
+						c.All{Tags: []string{"barPostprocessingBaz"}},
 					},
 				})
-				s.ConfigureEvents(config.Config{
+				s.ConfigureEvents(c.Config{
 					Tags:     []string{"barProcessing"},
 					Priority: 1,
-					Adds:     []*config.Generator{{Tags: []string{"barPostprocessingBaz"}, Count: 5}},
+					Adds: []*c.Generator{
+						{Tags: []string{"barPostprocessingBaz"}, Count: 5},
+					},
 				})
-				s.ConfigureEvents(config.Config{
+				s.ConfigureEvents(c.Config{
 					Tags:     []string{"barPostprocessingBaz"},
 					Priority: 2,
 				})
