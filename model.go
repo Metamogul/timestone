@@ -30,8 +30,7 @@ type Action interface {
 // covers most use cases.
 type SimpleAction func(context.Context)
 
-// Perform implements Action and performs the action that has been
-// passed when calling NewSimpleAction.
+// Perform implements Action and performs the func aliased by SimpleAction.
 func (s SimpleAction) Perform(ctx context.Context) {
 	s(ctx)
 }
