@@ -3,9 +3,9 @@ with-expecter: true
 dir: "{{.InterfaceDir}}"
 inpackage: true
 packages:
-  github.com/metamogul/timestone:
+  github.com/metamogul/timestone/v2:
     interfaces:
       Action:
-  github.com/metamogul/timestone/simulation/internal/events:
+  github.com/metamogul/timestone/v2/simulation/internal/events:
     interfaces:
       Generator:
