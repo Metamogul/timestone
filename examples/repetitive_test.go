@@ -213,3 +213,53 @@ func TestNoRaceWriting_ManualOrder(t *testing.T) {
 
 	require.Equal(t, "one0 two0 two1 one1 one2 two2 one3 two3 one4 two4 one5 two5 ", w.result)
 }
+
+type timeWriter struct {
+	scheduler timestone.Scheduler
+	mu        sync.Mutex
+}
+
+func (w *timeWriter) writeTime(ctx context.Context) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	now := (ctx.Value(timestone.ActionContextClockKey)).(timestone.Clock).Now()
+	time.Sleep(time.Duration(rand.Int64N(simulateWriteLoadMilliseconds)) * time.Millisecond)
+
+	fmt.Printf("%v\n", now)
+}
+
+func (w *timeWriter) run(ctx context.Context, writeInterval time.Duration) {
+	w.scheduler.PerformRepeatedly(
+		ctx, timestone.SimpleAction(w.writeTime), nil, writeInterval, "writeTime",
+	)
+}
+
+func ExampleNoRaceSelfWait() {
+	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	writeInterval := time.Minute
+
+	scheduler := simulation.NewScheduler(now)
+	scheduler.ConfigureEvents(
+		c.Config{
+			Tags: []string{"writeTime"},
+			WaitFor: []c.Event{c.Before{
+				Interval: -writeInterval,
+				Tags:     []string{"writeTime"},
+			}},
+		},
+	)
+
+	w := timeWriter{scheduler: scheduler}
+	w.run(context.Background(), writeInterval)
+
+	scheduler.Forward(6 * writeInterval)
+
+	// Output:
+	// 2024-01-01 12:01:00 +0000 UTC
+	// 2024-01-01 12:02:00 +0000 UTC
+	// 2024-01-01 12:03:00 +0000 UTC
+	// 2024-01-01 12:04:00 +0000 UTC
+	// 2024-01-01 12:05:00 +0000 UTC
+	// 2024-01-01 12:06:00 +0000 UTC
+}
