@@ -1,9 +1,9 @@
 # Timestone 🗿
 
 Timestone is a library to create deterministic and easy-to-understand unit tests for time-dependent, concurrent go 
-code. Existing libraries such as [Quartz](https://github.com/coder/quartz) or [Clock](https://github.com/benbjohnson/clock) 
-show the need for such a tool, yet have various shortcomings, for example not being able to reliably prevent 
-race-conditions in tests, or being difficult to read and understand when used.
+code. Existing libraries such as [Quartz](https://github.com/coder/quartz) or [Clock](https://github.com/benbjohnson/clock) show the need for such a tool, yet have various 
+shortcomings, for example not being able to reliably prevent race-conditions in tests, or being difficult to read and 
+understand when used.
 
 ### Goals
 
@@ -23,6 +23,17 @@ However this approach can be limiting, and there may be a need to extend the lib
 additional use cases. For instance, Timestone’s public model already includes passing the commonly used 
 `context.Context` but the `simulation` implementation doesn't always respect it. Another example is a cron syntax for 
 scheduling recurring tasks which could be easily integrated but is not included yet.
+
+### Limitations
+
+At its current stage, Timestone is fully functional and supports all possible use cases under the assumption that the
+computing time for scheduled go routines is not a concern. As a consequence, when testing the time inside actions is
+always fixed to an instant and won't pass or change for the duration of the action's execution.
+
+Another major limitation is the lack to fully support contexts: Contexts with a deadline from the `context` standard
+libraray package are currently not supported for technical reasons.
+
+Both issues are linked and will be considered in upcoming releases.
 
 ## Concepts
 
@@ -142,9 +153,8 @@ Now after executing every `firstAction` event, the scheduler will pause its run 
 
 ## Contributing
 
-This project is in its early stages, and contributions are welcome. Feel free to fork the repository and submit a PR. 
-When submitting a PR, it would be helpful to reference an open issue so that there is documentation for future 
-reference.
+This project is still under development, and contributions are welcome. Feel free to fork the repository and submit a PR. 
+When submitting a PR, it would be helpful to reference an open issue for better documentation.
 
 Currently, the most important features on the agenda for this project are:
 - Pipeline for linting and automatic unit tests before merging
