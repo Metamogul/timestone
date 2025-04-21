@@ -1,9 +1,27 @@
+# DEPRECATED
+
+**⚠️ Since the arrival of [`synctest`](https://go.dev/blog/synctest) in Go 1.24, there's a much better tool for testing 
+concurrent Go code. Therefore this project is deprecated and will not be maintained any longer.**
+
+To be specific what "much better" means:
+
+- Synctest works with native Go routines, no changes at all to the tested implementation needed
+- Less complex implementation directly in the Go runtime
+- Much simpler API and usage
+- Support for context and cancellation that Timestone was missing
+
+The only real drawback of `synctest` compared to Timestone is the lacking ability to order tests. However since the benefits greatly
+outway the drawbacks, I have moved myself to using synctest and therefore have decided to deprecate this project. In case
+anybody has started to incorporate this into production code, I'll leave it in public archive.
+
+---
+
 # Timestone 🗿
 
 Timestone is a library to create deterministic and easy-to-understand unit tests for time-dependent, concurrent go 
-code. Existing libraries such as [Quartz](https://github.com/coder/quartz) or [Clock](https://github.com/benbjohnson/clock) show the need for such a tool, yet have various 
-shortcomings, for example not being able to reliably prevent race-conditions in tests, or being difficult to read and 
-understand when used.
+code. Existing libraries such as [Quartz](https://github.com/coder/quartz) or [Clock](https://github.com/benbjohnson/clock)
+show the need for such a tool, yet have various shortcomings, for example not being able to reliably prevent race-conditions 
+in tests, or being difficult to read and understand when used.
 
 ### Goals
 
